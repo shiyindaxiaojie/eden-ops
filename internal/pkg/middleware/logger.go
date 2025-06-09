@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"eden-ops/pkg/logger"
+	"fmt"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -33,8 +33,22 @@ func Logger() gin.HandlerFunc {
 
 		// 请求IP
 		clientIP := c.ClientIP()
+		if clientIP == "::1" {
+			clientIP = "127.0.0.1"
+		}
 
-		// 使用全局日志格式记录
-		logger.LogHTTPRequest(statusCode, reqMethod, reqURI, latencyTime, clientIP)
+		// 构建日志格式：时间 | 状态码 | 耗时ms | 客户端IP | 请求方法 "请求路径"
+		timestamp := time.Now().Format("2006/01/02 15:04:05.000")
+		logMsg := fmt.Sprintf("%s | %3d | %dms | %15s | %-7s %q",
+			timestamp,
+			statusCode,
+			latencyTime.Milliseconds(),
+			clientIP,
+			reqMethod,
+			reqURI,
+		)
+
+		// 输出到控制台
+		fmt.Println(logMsg)
 	}
 }

@@ -3,6 +3,8 @@ package logger
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -32,25 +34,43 @@ func (l *GormLogger) Warn(ctx context.Context, msg string, data ...interface{}) 
 }
 
 func (l *GormLogger) Error(ctx context.Context, msg string, data ...interface{}) {
-	l.log.WithField("error", fmt.Sprintf(msg, data...)).Error("数据库错误")
+	_, file, line, ok := runtime.Caller(1)
+	if !ok {
+		file = "???"
+		line = 0
+	}
+	file = filepath.Base(file)
+
+	timestamp := time.Now().Format("2006/01/02 15:04:05.000")
+	logMsg := fmt.Sprintf("%s %s:%d 数据库错误: %s", timestamp, file, line, fmt.Sprintf(msg, data...))
+	l.log.Error(logMsg)
 }
 
 func (l *GormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql string, rowsAffected int64), err error) {
 	elapsed := time.Since(begin)
 	sql, rows := fc()
 
-	fields := logrus.Fields{
-		"duration": elapsed,
+	// 获取调用信息
+	_, file, line, ok := runtime.Caller(2) // 调整这个数字以获取正确的调用栈
+	if !ok {
+		file = "???"
+		line = 0
 	}
+	file = filepath.Base(file)
 
-	if rows >= 0 {
-		fields["rows"] = rows
-	}
+	// 构建日志格式：时间 文件:行号 [耗时ms] [rows:行数] SQL语句
+	timestamp := time.Now().Format("2006/01/02 15:04:05.000")
+	logMsg := fmt.Sprintf("%s %s:%d [%dms] [rows:%d] %s",
+		timestamp,
+		file,
+		line,
+		elapsed.Milliseconds(),
+		rows,
+		sql)
 
 	if err != nil {
-		fields["error"] = err
-		l.log.WithFields(fields).Error(sql)
+		l.log.WithField("error", err).Error(logMsg)
 	} else {
-		l.log.WithFields(fields).Info(sql)
+		l.log.Info(logMsg)
 	}
 }

@@ -4,6 +4,8 @@ import (
 	"eden-ops/pkg/config"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -17,30 +19,47 @@ type CustomFormatter struct {
 
 // Format 实现logrus.Formatter接口
 func (f *CustomFormatter) Format(entry *logrus.Entry) ([]byte, error) {
+	// 获取调用信息
+	_, file, line, ok := runtime.Caller(6) // 调整这个数字以获取正确的调用栈
+	if !ok {
+		file = "???"
+		line = 0
+	}
+	file = filepath.Base(file)
+
 	// 获取当前时间
-	timestamp := time.Now().Format("2006/01/02 - 15:04:05")
+	timestamp := entry.Time.Format("2006/01/02 15:04:05.000")
 
 	// 构建日志消息
-	// 对于非HTTP请求的日志，我们只显示时间和消息
-	logMessage := fmt.Sprintf("%s | --- | ------------ | ------------- | ----- %q\n",
-		timestamp,
-		entry.Message,
-	)
+	var logMessage string
 
-	// 如果有HTTP相关字段，则使用完整格式
+	// 如果有HTTP相关字段，则使用HTTP请求格式
 	if statusCode, ok := entry.Data["status_code"].(int); ok {
 		method, _ := entry.Data["method"].(string)
 		path, _ := entry.Data["path"].(string)
 		latency, _ := entry.Data["latency"].(time.Duration)
 		clientIP, _ := entry.Data["client_ip"].(string)
 
-		logMessage = fmt.Sprintf("%s | %3d | %12v | %15s | %-7s %q\n",
+		// 如果是本地请求，将::1转换为127.0.0.1
+		if clientIP == "::1" {
+			clientIP = "127.0.0.1"
+		}
+
+		logMessage = fmt.Sprintf("%s | %3d | %dms | %15s | %-7s %q\n",
 			timestamp,
 			statusCode,
-			latency,
+			latency.Milliseconds(),
 			clientIP,
 			method,
 			path,
+		)
+	} else {
+		// 对于普通日志，使用文件:行号格式
+		logMessage = fmt.Sprintf("%s %s:%d %s\n",
+			timestamp,
+			file,
+			line,
+			entry.Message,
 		)
 	}
 

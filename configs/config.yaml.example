@@ -1,37 +1,30 @@
-# Server Configuration
+# 服务器配置
 server:
   port: 8080
+  mode: debug # debug, release, test
 
-# Database Configuration
+# 数据库配置
 database:
-  host: "localhost"
+  driver: mysql
+  host: 127.0.0.1
   port: 3306
-  username: "root"
-  password: "123456"
-  dbname: "eden_ops"
+  username: root
+  password:  # 修改为实际的数据库密码
+  dbname: eden_ops
+  charset: utf8mb4
   max_idle_conns: 10
   max_open_conns: 100
-  conn_max_lifetime: 3600s
+  log_level: info # silent, error, warn, info
 
-# Logging Configuration
-log:
-  level: "info"  # debug, info, warn, error
-  format: "text" # text, json
-  output: "stdout" # stdout, file
-
-# Tencent Cloud Configuration
-tencent:
-  secret_id: "your_secret_id"
-  secret_key: "your_secret_key"
-  region: "ap-guangzhou"
-
-# JWT Configuration
+# JWT配置
 jwt:
-  secret: "your-jwt-secret-key"
-  expire: 24  # hours
-  issuer: "eden-ops"
+  secret: eden_ops_secret_key
+  expire: 24 # 小时
+  issuer: eden_ops
 
-# Application Configuration
-app:
-  name: "eden-ops"
-  version: "1.0.0" 
+# 日志配置
+log:
+  level: info # debug, info, warn, error, fatal
+  format: text # text, json
+  output: console # console, file
+  file: logs/eden-ops.log

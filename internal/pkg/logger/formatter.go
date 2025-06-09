@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
@@ -30,12 +31,12 @@ func (f *CustomFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	file = filepath.Base(file)
 
 	// 构建基本日志格式：时间 文件:行号
-	timestamp := entry.Time.Format(f.TimestampFormat)
+	timestamp := entry.Time.Format("2006/01/02 15:04:05.000")
 	msg := fmt.Sprintf("%s %s:%d", timestamp, file, line)
 
 	// 如果有耗时信息，添加耗时
 	if duration, ok := entry.Data["duration"]; ok {
-		msg += fmt.Sprintf(" [%v]", duration)
+		msg += fmt.Sprintf(" [%vms]", duration.(time.Duration).Milliseconds())
 	}
 
 	// 如果有影响的行数，添加行数信息
