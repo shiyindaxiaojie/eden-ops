@@ -1,0 +1,15 @@
+version: '3'
+
+services:
+  eden-ops:
+    build:
+      context: ..
+      dockerfile: deployments/Dockerfile
+    environment:
+      - TENCENTCLOUD_SECRET_ID=${TENCENTCLOUD_SECRET_ID}
+      - TENCENTCLOUD_SECRET_KEY=${TENCENTCLOUD_SECRET_KEY}
+    volumes:
+      - ../configs:/etc/eden-ops
+    ports:
+      - "8080:8080"
+    restart: always 

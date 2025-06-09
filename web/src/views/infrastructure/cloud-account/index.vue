@@ -1,0 +1,361 @@
+<template>
+  <div class="app-container">
+    <el-card class="box-card">
+      <template #header>
+        <div class="card-header">
+          <span>云账号管理</span>
+          <el-button type="primary" @click="handleAdd">新增账号</el-button>
+    </div>
+        </template>
+
+      <el-form :inline="true" :model="queryParams" class="search-form">
+        <el-form-item label="账号名称">
+          <el-input v-model="queryParams.name" placeholder="请输入账号名称" clearable />
+        </el-form-item>
+        <el-form-item label="云厂商">
+          <el-select v-model="queryParams.provider" placeholder="请选择云厂商" clearable style="min-width: 240px">
+            <el-option label="腾讯云" value="tencent" />
+            <el-option label="阿里云" value="aliyun" />
+            <el-option label="华为云" value="huawei" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="queryParams.status" placeholder="请选择状态" clearable style="min-width: 240px">
+            <el-option label="启用" value="1" />
+            <el-option label="禁用" value="0" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleQuery">查询</el-button>
+          <el-button @click="resetQuery">重置</el-button>
+        </el-form-item>
+      </el-form>
+
+      <el-table :data="accountList" style="width: 100%" v-loading="loading">
+        <el-table-column type="index" label="序号" width="60" />
+        <el-table-column prop="name" label="账号名称" />
+        <el-table-column prop="provider" label="云厂商">
+          <template #default="{ row }">
+            <el-tag>{{ getProviderLabel(row.provider) }}</el-tag>
+        </template>
+      </el-table-column>
+        <el-table-column prop="region" label="地域" />
+        <el-table-column prop="remark" label="备注" />
+        <el-table-column prop="status" label="状态" align="center" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.status === '1' ? 'success' : 'danger'">
+              {{ row.status === '1' ? '启用' : '禁用' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+        <el-table-column prop="created_at" label="创建时间" width="180" />
+        <el-table-column label="操作" width="250" fixed="right">
+          <template #default="{ row }">
+            <el-button type="primary" link @click="handleEdit(row)">编辑</el-button>
+            <el-button type="primary" link @click="handleTest(row)">测试连接</el-button>
+            <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+
+      <el-pagination
+        v-if="total > 0"
+        class="pagination"
+      :total="total"
+        v-model:current-page="queryParams.pageNum"
+        v-model:page-size="queryParams.pageSize"
+        :page-sizes="[10, 20, 30, 50]"
+        layout="total, sizes, prev, pager, next, jumper"
+        @size-change="handleSizeChange"
+        @current-change="handleCurrentChange"
+      />
+
+      <el-dialog
+        :title="dialogTitle"
+        v-model="dialogVisible"
+        width="600px"
+        append-to-body
+        @close="resetForm"
+      >
+      <el-form
+          ref="formRef"
+          :model="form"
+        :rules="rules"
+        label-width="100px"
+      >
+        <el-form-item label="账号名称" prop="name">
+            <el-input v-model="form.name" placeholder="请输入账号名称" />
+        </el-form-item>
+          <el-form-item label="云厂商" prop="provider">
+            <el-select v-model="form.provider" placeholder="请选择云厂商" style="width: 100%; min-width: 240px">
+              <el-option label="腾讯云" value="tencent" />
+              <el-option label="阿里云" value="aliyun" />
+              <el-option label="华为云" value="huawei" />
+          </el-select>
+        </el-form-item>
+          <el-form-item label="Access Key" prop="access_key">
+            <el-input v-model="form.access_key" placeholder="请输入 Access Key" />
+        </el-form-item>
+          <el-form-item label="Secret Key" prop="secret_key">
+            <el-input
+              v-model="form.secret_key"
+              type="password"
+              placeholder="请输入 Secret Key"
+              show-password
+            />
+        </el-form-item>
+          <el-form-item label="地域" prop="region">
+            <el-input v-model="form.region" placeholder="请输入地域" />
+        </el-form-item>
+          <el-form-item label="备注" prop="remark">
+            <el-input
+              v-model="form.remark"
+              type="textarea"
+              :rows="2"
+              placeholder="请输入备注信息"
+            />
+        </el-form-item>
+          <el-form-item label="状态" prop="status">
+            <el-radio-group v-model="form.status">
+              <el-radio label="1">启用</el-radio>
+              <el-radio label="0">禁用</el-radio>
+            </el-radio-group>
+        </el-form-item>
+      </el-form>
+        <template #footer>
+          <div class="dialog-footer">
+            <el-button @click="dialogVisible = false">取 消</el-button>
+            <el-button type="primary" @click="submitForm">确 定</el-button>
+      </div>
+        </template>
+    </el-dialog>
+    </el-card>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, reactive, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
+import {
+  getCloudAccounts,
+  createCloudAccount,
+  updateCloudAccount,
+  deleteCloudAccount,
+  testCloudAccount
+} from '@/api/cloud-account'
+import type { CloudAccount } from '@/types/api'
+
+interface QueryParams {
+  name: string
+  provider: string
+  status: string
+  pageNum: number
+  pageSize: number
+}
+
+interface AccountForm extends Partial<CloudAccount> {
+  access_key: string
+  secret_key: string
+}
+
+const loading = ref(false)
+const total = ref(0)
+const accountList = ref<CloudAccount[]>([])
+const dialogVisible = ref(false)
+const dialogTitle = ref('')
+
+const formRef = ref<FormInstance>()
+
+const queryParams = reactive<QueryParams>({
+  name: '',
+  provider: '',
+  status: '',
+  pageNum: 1,
+  pageSize: 10
+})
+
+const form = reactive<AccountForm>({
+        name: '',
+        provider: '',
+  access_key: '',
+  secret_key: '',
+        region: '',
+  remark: '',
+  status: '1'
+})
+
+const rules: FormRules = {
+  name: [
+    { required: true, message: '请输入账号名称', trigger: 'blur' },
+    { min: 2, max: 50, message: '长度在 2 到 50 个字符', trigger: 'blur' }
+  ],
+  provider: [
+    { required: true, message: '请选择云厂商', trigger: 'change' }
+  ],
+  access_key: [
+    { required: true, message: '请输入 Access Key', trigger: 'blur' }
+  ],
+  secret_key: [
+    { required: true, message: '请输入 Secret Key', trigger: 'blur' }
+  ],
+  region: [
+    { required: true, message: '请输入地域', trigger: 'blur' }
+  ]
+}
+
+const getProviderLabel = (provider: string) => {
+  const providerMap: { [key: string]: string } = {
+    tencent: '腾讯云',
+    aliyun: '阿里云',
+    huawei: '华为云'
+  }
+  return providerMap[provider] || provider
+}
+
+const handleQuery = async () => {
+  loading.value = true
+  try {
+    const { data } = await getCloudAccounts({
+      ...queryParams,
+      page: queryParams.pageNum,
+      size: queryParams.pageSize
+    })
+    accountList.value = data.list
+    total.value = data.total
+  } catch (error: any) {
+    ElMessage.error(error.message || '查询失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+const resetQuery = () => {
+  queryParams.name = ''
+  queryParams.provider = ''
+  queryParams.status = ''
+  queryParams.pageNum = 1
+  handleQuery()
+}
+
+const handleAdd = () => {
+  resetForm()
+  dialogTitle.value = '新增账号'
+  dialogVisible.value = true
+}
+
+const handleEdit = (row: CloudAccount) => {
+  resetForm()
+  dialogTitle.value = '编辑账号'
+  Object.assign(form, row)
+  dialogVisible.value = true
+}
+
+const handleTest = async (row: CloudAccount) => {
+  try {
+    await testCloudAccount(row.id)
+    ElMessage.success('连接测试成功')
+  } catch (error: any) {
+    ElMessage.error(error.message || '连接测试失败')
+  }
+}
+
+const handleDelete = (row: CloudAccount) => {
+  ElMessageBox.confirm(
+    `确认删除账号"${row.name}"吗？`,
+    '警告',
+    {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    }
+  ).then(async () => {
+    try {
+      await deleteCloudAccount(row.id)
+      ElMessage.success('删除成功')
+      handleQuery()
+    } catch (error: any) {
+      ElMessage.error(error.message || '删除失败')
+    }
+  }).catch(() => {
+    ElMessage.info('已取消删除')
+  })
+}
+
+const handleSizeChange = (size: number) => {
+  queryParams.pageSize = size
+  handleQuery()
+}
+
+const handleCurrentChange = (page: number) => {
+  queryParams.pageNum = page
+  handleQuery()
+}
+
+const resetForm = () => {
+  if (formRef.value) {
+    formRef.value.resetFields()
+  }
+  Object.assign(form, {
+        id: undefined,
+        name: '',
+        provider: '',
+    access_key: '',
+    secret_key: '',
+        region: '',
+    remark: '',
+    status: '1'
+  })
+}
+
+const submitForm = async () => {
+  if (!formRef.value) return
+
+  await formRef.value.validate(async (valid) => {
+        if (valid) {
+      try {
+        if (form.id) {
+          await updateCloudAccount(form.id, form)
+          ElMessage.success('更新成功')
+        } else {
+          await createCloudAccount(form)
+          ElMessage.success('创建成功')
+        }
+        dialogVisible.value = false
+        handleQuery()
+      } catch (error: any) {
+        ElMessage.error(error.message || (form.id ? '更新失败' : '创建失败'))
+      }
+    }
+  })
+}
+
+onMounted(() => {
+  handleQuery()
+})
+</script>
+
+<style scoped>
+.app-container {
+  padding: 20px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.search-form {
+  margin-bottom: 20px;
+}
+
+.pagination {
+  margin-top: 20px;
+  justify-content: flex-end;
+}
+
+.dialog-footer {
+  text-align: right;
+}
+</style> 

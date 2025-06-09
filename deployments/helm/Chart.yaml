@@ -1,0 +1,31 @@
+apiVersion: v2
+name: eden-ops
+description: A Helm chart for Eden Ops service
+
+# Chart 版本
+version: 0.1.0
+
+# 应用版本
+appVersion: "1.0.0"
+
+# Chart 类型
+type: application
+
+# 维护者信息
+maintainers:
+  - name: eden-ops-team
+    email: eden-ops@example.com
+
+# 关键字
+keywords:
+  - eden
+  - ops
+  - cloud
+  - tencent
+
+# 主页
+home: https://github.com/yourusername/eden-ops
+
+# 源码地址
+sources:
+  - https://github.com/yourusername/eden-ops

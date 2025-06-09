@@ -1,0 +1,29 @@
+// 主题色变量
+$theme-colors: (
+  'default': (
+    '--primary-color': #1890ff,
+    '--primary-light-color': #e6f7ff,
+    '--success-color': #52c41a,
+    '--warning-color': #faad14,
+    '--danger-color': #f5222d,
+    '--info-color': #8c8c8c,
+    '--background-color': #ffffff,
+    '--text-color': #000000d9,
+    '--border-color': #f0f0f0,
+    '--sidebar-bg': #ffffff,
+    '--header-bg': #ffffff,
+  ),
+  'light': (
+    '--primary-color': #40a9ff,
+    '--primary-light-color': #e6f7ff,
+    '--success-color': #52c41a,
+    '--warning-color': #faad14,
+    '--danger-color': #f5222d,
+    '--info-color': #8c8c8c,
+    '--background-color': #f0f2f5,
+    '--text-color': #000000d9,
+    '--border-color': #f0f0f0,
+    '--sidebar-bg': #ffffff,
+    '--header-bg': #ffffff,
+  )
+); 

@@ -1,0 +1,37 @@
+# Server Configuration
+server:
+  port: 8080
+
+# Database Configuration
+database:
+  host: "localhost"
+  port: 3306
+  username: "root"
+  password: "123456"
+  dbname: "eden_ops"
+  max_idle_conns: 10
+  max_open_conns: 100
+  conn_max_lifetime: 3600s
+
+# Logging Configuration
+log:
+  level: "info"  # debug, info, warn, error
+  format: "text" # text, json
+  output: "stdout" # stdout, file
+
+# Tencent Cloud Configuration
+tencent:
+  secret_id: "your_secret_id"
+  secret_key: "your_secret_key"
+  region: "ap-guangzhou"
+
+# JWT Configuration
+jwt:
+  secret: "your-jwt-secret-key"
+  expire: 24  # hours
+  issuer: "eden-ops"
+
+# Application Configuration
+app:
+  name: "eden-ops"
+  version: "1.0.0" 

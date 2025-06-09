@@ -1,0 +1,34 @@
+image: golang:1.20
+
+variables:
+  GOPROXY: https://goproxy.cn,direct
+
+stages:
+  - test
+  - build
+  - package
+
+test:
+  stage: test
+  script:
+    - go test -v ./...
+
+build:
+  stage: build
+  script:
+    - chmod +x scripts/build.sh
+    - ./scripts/build.sh
+  artifacts:
+    paths:
+      - build/package/
+
+package:
+  stage: package
+  only:
+    - tags
+  script:
+    - echo "Creating release packages..."
+  artifacts:
+    paths:
+      - build/package/*.zip
+      - build/package/*.tar.gz 

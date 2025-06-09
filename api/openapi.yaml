@@ -1,0 +1,79 @@
+openapi: 3.0.0
+info:
+  title: Eden Ops API
+  description: Eden Ops 腾讯云资源管理 API
+  version: 1.0.0
+
+paths:
+  /api/v1/ip/locate:
+    get:
+      summary: 查询 IP 对应的腾讯云资源
+      parameters:
+        - name: ip
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 要查询的 IP 地址
+        - name: region
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 腾讯云区域
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 0
+                  message:
+                    type: string
+                    example: "success"
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ResourceInfo'
+
+components:
+  schemas:
+    ResourceInfo:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [CLB, CVM, CFS, MariaDB, Redis, ES, CKafka]
+          description: 资源类型
+        instance_id:
+          type: string
+          description: 实例 ID
+        name:
+          type: string
+          description: 实例名称
+        private_ip:
+          type: string
+          description: 私有 IP
+        public_ip:
+          type: string
+          description: 公网 IP
+        vip:
+          type: string
+          description: VIP
+        region:
+          type: string
+          description: 区域
+        status:
+          type: string
+          description: 状态
+        create_time:
+          type: string
+          format: date-time
+          description: 创建时间
+        description:
+          type: string
+          description: 描述 

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>eden*</title>
+    <script>
+      // 清除登录状态的辅助函数
+      function clearLoginState() {
+        // 检查当前URL是否在登录页
+        if (window.location.pathname === '/login') {
+          // 清除token相关的所有存储
+          localStorage.removeItem('eden-token');
+          sessionStorage.removeItem('eden-token');
+          localStorage.removeItem('user');
+          sessionStorage.removeItem('user');
+          
+          // 清除cookies
+          document.cookie = "eden-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+          
+          console.log('登录页已清除所有认证状态');
+        }
+      }
+      
+      // 页面加载时执行
+      window.addEventListener('load', clearLoginState);
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

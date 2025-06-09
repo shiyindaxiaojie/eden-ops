@@ -1,0 +1,15 @@
+[Unit]
+Description=Eden Ops Service
+After=network.target
+
+[Service]
+Type=simple
+User=eden-ops
+Group=eden-ops
+WorkingDirectory=/opt/eden-ops
+ExecStart=/opt/eden-ops/eden-ops
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target 
