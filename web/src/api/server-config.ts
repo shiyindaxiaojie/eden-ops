@@ -37,4 +37,11 @@ export function deleteServerConfig(id: number) {
     url: `/api/v1/server-configs/${id}`,
     method: 'delete'
   })
-} 
+}
+
+export function testServerConfig(id: number) {
+  return request<BaseResponse<null>>({
+    url: `/api/v1/server-configs/${id}/test`,
+    method: 'post'
+  })
+}
