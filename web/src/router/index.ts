@@ -74,12 +74,6 @@ export const constantRoutes: Array<RouteRecordRaw> = [
         name: 'Server',
         component: () => import('@/views/infrastructure/server/index.vue'),
         meta: { title: '服务器配置', icon: 'Monitor' }
-      },
-      {
-        path: 'kubernetes',
-        name: 'Kubernetes',
-        component: () => import('@/views/infrastructure/kubernetes/index.vue'),
-        meta: { title: 'Kubernetes集群', icon: 'kubernetes' }
       }
     ]
   },

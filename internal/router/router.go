@@ -12,6 +12,7 @@ import (
 func NewRouter(
 	jwtAuth *auth.JWTAuth,
 	cloudAccountHandler *handler.CloudAccountHandler,
+	cloudProviderHandler *handler.CloudProviderHandler,
 	databaseConfigHandler *handler.DatabaseConfigHandler,
 	serverConfigHandler *handler.ServerConfigHandler,
 	k8sConfigHandler *handler.K8sConfigHandler,
@@ -35,8 +36,8 @@ func NewRouter(
 	// 公共路由
 	{
 		// 用户认证
-		api.POST("/login", userHandler.Login)
-		api.POST("/logout", userHandler.Logout)
+		api.POST("/login", authHandler.Login)
+		api.POST("/logout", authHandler.Logout)
 	}
 
 	// 需要认证的路由
@@ -99,6 +100,45 @@ func NewRouter(
 		auth.PUT("/k8s-configs/:id", k8sConfigHandler.Update)
 		auth.DELETE("/k8s-configs/:id", k8sConfigHandler.Delete)
 		auth.POST("/k8s-configs/test", k8sConfigHandler.TestConnection)
+
+		// 基础设施路由组
+		infrastructure := auth.Group("/infrastructure")
+		{
+			// 云厂商
+			infrastructure.GET("/cloud-providers", cloudProviderHandler.List)
+			infrastructure.GET("/cloud-providers/:id", cloudProviderHandler.Get)
+			infrastructure.POST("/cloud-providers", cloudProviderHandler.Create)
+			infrastructure.PUT("/cloud-providers/:id", cloudProviderHandler.Update)
+			infrastructure.DELETE("/cloud-providers/:id", cloudProviderHandler.Delete)
+
+			// 云账号
+			infrastructure.GET("/cloud-accounts", cloudAccountHandler.List)
+			infrastructure.GET("/cloud-accounts/:id", cloudAccountHandler.Get)
+			infrastructure.POST("/cloud-accounts", cloudAccountHandler.Create)
+			infrastructure.PUT("/cloud-accounts/:id", cloudAccountHandler.Update)
+			infrastructure.DELETE("/cloud-accounts/:id", cloudAccountHandler.Delete)
+
+			// 数据库
+			infrastructure.GET("/database", databaseConfigHandler.List)
+			infrastructure.GET("/database/:id", databaseConfigHandler.Get)
+			infrastructure.POST("/database", databaseConfigHandler.Create)
+			infrastructure.PUT("/database/:id", databaseConfigHandler.Update)
+			infrastructure.DELETE("/database/:id", databaseConfigHandler.Delete)
+
+			// 服务器
+			infrastructure.GET("/server", serverConfigHandler.List)
+			infrastructure.GET("/server/:id", serverConfigHandler.Get)
+			infrastructure.POST("/server", serverConfigHandler.Create)
+			infrastructure.PUT("/server/:id", serverConfigHandler.Update)
+			infrastructure.DELETE("/server/:id", serverConfigHandler.Delete)
+
+			// Kubernetes
+			infrastructure.GET("/kubernetes", k8sConfigHandler.List)
+			infrastructure.GET("/kubernetes/:id", k8sConfigHandler.Get)
+			infrastructure.POST("/kubernetes", k8sConfigHandler.Create)
+			infrastructure.PUT("/kubernetes/:id", k8sConfigHandler.Update)
+			infrastructure.DELETE("/kubernetes/:id", k8sConfigHandler.Delete)
+		}
 	}
 
 	return r

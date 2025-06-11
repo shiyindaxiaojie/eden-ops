@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"log"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -55,18 +56,23 @@ func (j *JWTAuth) GenerateToken(userID uint, username string) (string, error) {
 
 // ParseToken 解析令牌
 func (j *JWTAuth) ParseToken(tokenString string) (*CustomClaims, error) {
+	log.Printf("解析token: %s", tokenString)
+
 	token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return []byte(j.secret), nil
 	})
 
 	if err != nil {
+		log.Printf("解析token失败: %v", err)
 		return nil, err
 	}
 
 	if claims, ok := token.Claims.(*CustomClaims); ok && token.Valid {
+		log.Printf("解析token成功: userID=%d, username=%s", claims.UserID, claims.Username)
 		return claims, nil
 	}
 
+	log.Printf("无效的token")
 	return nil, errors.New("invalid token")
 }
 

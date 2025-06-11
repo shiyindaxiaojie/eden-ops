@@ -19,7 +19,7 @@ export function login(data: LoginRequest) {
     url: '/api/v1/login',
     method: 'post',
     data
-  })
+  }).then(res => res.data)
 }
 
 // 登出
@@ -27,7 +27,7 @@ export function logout() {
   return request<null>({
     url: '/api/v1/logout',
     method: 'post'
-  })
+  }).then(res => res.data)
 }
 
 // 获取用户信息
@@ -35,5 +35,5 @@ export function getUserInfo() {
   return request<User>({
     url: '/api/v1/users/info',
     method: 'get'
-  })
+  }).then(res => res.data)
 } 

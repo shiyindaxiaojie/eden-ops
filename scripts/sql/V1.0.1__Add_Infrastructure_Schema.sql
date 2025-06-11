@@ -138,18 +138,21 @@ INSERT INTO `sys_menu` (`parent_id`, `name`, `path`, `component`, `perms`, `type
 (@infra_id, 'Kubernetes', 'kubernetes', 'infrastructure/kubernetes/index', 'infrastructure:kubernetes:list', 1, 'kubernetes', 1, 1),
 (@infra_id, '服务器管理', 'server', 'infrastructure/server/index', 'infrastructure:server:list', 1, 'server', 2, 1),
 (@infra_id, '数据库管理', 'database', 'infrastructure/database/index', 'infrastructure:database:list', 1, 'database', 3, 1),
-(@infra_id, '云账号管理', 'cloud-provider', 'infrastructure/cloud-provider/index', 'infrastructure:cloud:list', 1, 'cloud', 4, 1);
+(@infra_id, '云厂商管理', 'cloud-provider', 'infrastructure/cloud-provider/index', 'infrastructure:cloud-provider:list', 1, 'cloud', 4, 1),
+(@infra_id, '云账号管理', 'cloud-account', 'infrastructure/cloud-account/index', 'infrastructure:cloud-account:list', 1, 'cloudy', 5, 1);
 
 -- 获取各个子菜单的ID
 SET @k8s_menu_id = NULL;
 SET @server_menu_id = NULL;
 SET @db_menu_id = NULL;
-SET @cloud_menu_id = NULL;
+SET @cloud_provider_menu_id = NULL;
+SET @cloud_account_menu_id = NULL;
 
 SELECT @k8s_menu_id := id FROM `sys_menu` WHERE `path` = 'kubernetes' AND parent_id = @infra_id;
 SELECT @server_menu_id := id FROM `sys_menu` WHERE `path` = 'server' AND parent_id = @infra_id;
 SELECT @db_menu_id := id FROM `sys_menu` WHERE `path` = 'database' AND parent_id = @infra_id;
-SELECT @cloud_menu_id := id FROM `sys_menu` WHERE `path` = 'cloud-provider' AND parent_id = @infra_id;
+SELECT @cloud_provider_menu_id := id FROM `sys_menu` WHERE `path` = 'cloud-provider' AND parent_id = @infra_id;
+SELECT @cloud_account_menu_id := id FROM `sys_menu` WHERE `path` = 'cloud-account' AND parent_id = @infra_id;
 
 -- 授权基础设施菜单给管理员角色
 INSERT IGNORE INTO `sys_role_menu` (`role_id`, `menu_id`)
@@ -163,31 +166,39 @@ WHERE @admin_role_id IS NOT NULL AND parent_id = @infra_id;
 -- Add CRUD permissions for Cloud Provider
 INSERT INTO `sys_menu` (`parent_id`, `name`, `perms`, `type`, `icon`, `sort_order`, `status`)
 VALUES 
-(@cloud_menu_id, 'CloudProviderList', 'infrastructure:cloud-provider:list', 2, NULL, 1, 1),
-(@cloud_menu_id, 'CloudProviderCreate', 'infrastructure:cloud-provider:create', 2, NULL, 2, 1),
-(@cloud_menu_id, 'CloudProviderUpdate', 'infrastructure:cloud-provider:update', 2, NULL, 3, 1),
-(@cloud_menu_id, 'CloudProviderDelete', 'infrastructure:cloud-provider:delete', 2, NULL, 4, 1);
+(@cloud_provider_menu_id, '云厂商列表', 'infrastructure:cloud-provider:list', 2, NULL, 1, 1),
+(@cloud_provider_menu_id, '云厂商创建', 'infrastructure:cloud-provider:create', 2, NULL, 2, 1),
+(@cloud_provider_menu_id, '云厂商更新', 'infrastructure:cloud-provider:update', 2, NULL, 3, 1),
+(@cloud_provider_menu_id, '云厂商删除', 'infrastructure:cloud-provider:delete', 2, NULL, 4, 1);
+
+-- Add CRUD permissions for Cloud Account
+INSERT INTO `sys_menu` (`parent_id`, `name`, `perms`, `type`, `icon`, `sort_order`, `status`)
+VALUES 
+(@cloud_account_menu_id, '云账号列表', 'infrastructure:cloud-account:list', 2, NULL, 1, 1),
+(@cloud_account_menu_id, '云账号创建', 'infrastructure:cloud-account:create', 2, NULL, 2, 1),
+(@cloud_account_menu_id, '云账号更新', 'infrastructure:cloud-account:update', 2, NULL, 3, 1),
+(@cloud_account_menu_id, '云账号删除', 'infrastructure:cloud-account:delete', 2, NULL, 4, 1);
 
 -- Add CRUD permissions for Kubernetes
 INSERT INTO `sys_menu` (`parent_id`, `name`, `perms`, `type`, `icon`, `sort_order`, `status`)
 VALUES 
-(@k8s_menu_id, 'KubernetesList', 'infrastructure:kubernetes:list', 2, NULL, 1, 1),
-(@k8s_menu_id, 'KubernetesCreate', 'infrastructure:kubernetes:create', 2, NULL, 2, 1),
-(@k8s_menu_id, 'KubernetesUpdate', 'infrastructure:kubernetes:update', 2, NULL, 3, 1),
-(@k8s_menu_id, 'KubernetesDelete', 'infrastructure:kubernetes:delete', 2, NULL, 4, 1);
+(@k8s_menu_id, 'Kubernetes列表', 'infrastructure:kubernetes:list', 2, NULL, 1, 1),
+(@k8s_menu_id, 'Kubernetes创建', 'infrastructure:kubernetes:create', 2, NULL, 2, 1),
+(@k8s_menu_id, 'Kubernetes更新', 'infrastructure:kubernetes:update', 2, NULL, 3, 1),
+(@k8s_menu_id, 'Kubernetes删除', 'infrastructure:kubernetes:delete', 2, NULL, 4, 1);
 
 -- Add CRUD permissions for Database
 INSERT INTO `sys_menu` (`parent_id`, `name`, `perms`, `type`, `icon`, `sort_order`, `status`)
 VALUES 
-(@db_menu_id, 'DatabaseList', 'infrastructure:database:list', 2, NULL, 1, 1),
-(@db_menu_id, 'DatabaseCreate', 'infrastructure:database:create', 2, NULL, 2, 1),
-(@db_menu_id, 'DatabaseUpdate', 'infrastructure:database:update', 2, NULL, 3, 1),
-(@db_menu_id, 'DatabaseDelete', 'infrastructure:database:delete', 2, NULL, 4, 1);
+(@db_menu_id, '数据库列表', 'infrastructure:database:list', 2, NULL, 1, 1),
+(@db_menu_id, '数据库创建', 'infrastructure:database:create', 2, NULL, 2, 1),
+(@db_menu_id, '数据库更新', 'infrastructure:database:update', 2, NULL, 3, 1),
+(@db_menu_id, '数据库删除', 'infrastructure:database:delete', 2, NULL, 4, 1);
 
 -- Add CRUD permissions for Server
 INSERT INTO `sys_menu` (`parent_id`, `name`, `perms`, `type`, `icon`, `sort_order`, `status`)
 VALUES 
-(@server_menu_id, 'ServerList', 'infrastructure:server:list', 2, NULL, 1, 1),
-(@server_menu_id, 'ServerCreate', 'infrastructure:server:create', 2, NULL, 2, 1),
-(@server_menu_id, 'ServerUpdate', 'infrastructure:server:update', 2, NULL, 3, 1),
-(@server_menu_id, 'ServerDelete', 'infrastructure:server:delete', 2, NULL, 4, 1); 
+(@server_menu_id, '服务器列表', 'infrastructure:server:list', 2, NULL, 1, 1),
+(@server_menu_id, '服务器创建', 'infrastructure:server:create', 2, NULL, 2, 1),
+(@server_menu_id, '服务器更新', 'infrastructure:server:update', 2, NULL, 3, 1),
+(@server_menu_id, '服务器删除', 'infrastructure:server:delete', 2, NULL, 4, 1); 

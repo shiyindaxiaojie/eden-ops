@@ -3,7 +3,7 @@ import request from '@/utils/request'
 // 获取云账号列表
 export function getCloudAccountList(params: any) {
   return request({
-    url: '/api/infrastructure/cloud-accounts',
+    url: '/api/v1/infrastructure/cloud-accounts',
     method: 'get',
     params
   })
@@ -12,7 +12,7 @@ export function getCloudAccountList(params: any) {
 // 创建云账号
 export function createCloudAccount(data: any) {
   return request({
-    url: '/api/infrastructure/cloud-accounts',
+    url: '/api/v1/infrastructure/cloud-accounts',
     method: 'post',
     data
   })

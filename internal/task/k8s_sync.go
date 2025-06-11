@@ -2,9 +2,11 @@ package task
 
 import (
 	"context"
-	"log"
-
+	"eden-ops/internal/pkg/utils"
 	"eden-ops/internal/service"
+	"path/filepath"
+	"runtime"
+	"time"
 
 	"github.com/robfig/cron/v3"
 	"github.com/sirupsen/logrus"
@@ -31,21 +33,30 @@ func NewK8sSyncTask(db *gorm.DB, service service.K8sConfigService, logger *logru
 
 // Start 启动同步任务
 func (t *K8sSyncTask) Start(ctx context.Context) error {
-	t.logger.Info("启动 Kubernetes 同步任务")
+	t.logger.Infof("启动 Kubernetes 同步任务")
 
 	// 每5分钟同步一次
 	_, err := t.cron.AddFunc("*/5 * * * *", func() {
+		// 获取调用信息
+		_, filePath, line, _ := runtime.Caller(0)
+		file := filepath.Base(filePath)
+
 		// 获取所有Kubernetes配置
 		configs, _, err := t.service.List(1, 1000)
 		if err != nil {
-			log.Printf("获取Kubernetes配置列表失败: %v", err)
+			timestamp := time.Now().Format(utils.DateTimeMillisecond)
+			t.logger.Errorf("%s %s:%d 获取Kubernetes配置列表失败: %v", timestamp, file, line, err)
 			return
 		}
 
 		// 同步每个集群
 		for _, config := range configs {
 			if err := t.service.SyncCluster(int64(config.ID)); err != nil {
-				log.Printf("同步集群 %s 失败: %v", config.Name, err)
+				timestamp := time.Now().Format(utils.DateTimeMillisecond)
+				t.logger.Errorf("%s %s:%d 同步集群 %s 失败: %v", timestamp, file, line, config.Name, err)
+			} else {
+				timestamp := time.Now().Format(utils.DateTimeMillisecond)
+				t.logger.Infof("%s %s:%d 同步集群 %s 成功", timestamp, file, line, config.Name)
 			}
 		}
 	})
@@ -60,7 +71,13 @@ func (t *K8sSyncTask) Start(ctx context.Context) error {
 	go func() {
 		<-ctx.Done()
 		t.Stop()
-		t.logger.Info("停止 Kubernetes 同步任务")
+
+		// 获取调用信息
+		_, filePath, line, _ := runtime.Caller(0)
+		file := filepath.Base(filePath)
+
+		timestamp := time.Now().Format(utils.DateTimeMillisecond)
+		t.logger.Infof("%s %s:%d 停止 Kubernetes 同步任务", timestamp, file, line)
 	}()
 
 	return nil

@@ -35,11 +35,11 @@
         <el-table-column prop="phone" label="手机号" />
         <el-table-column prop="status" label="状态" align="center" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.status === '1' ? 'success' : 'danger'">
-              {{ row.status === '1' ? '启用' : '禁用' }}
-          </el-tag>
-        </template>
-      </el-table-column>
+            <el-tag :type="row.status === 1 || row.status === '1' ? 'success' : 'danger'">
+              {{ row.status === 1 || row.status === '1' ? '正常' : '禁用' }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="180" />
         <el-table-column label="操作" width="250" fixed="right">
           <template #default="{ row }">
@@ -99,7 +99,7 @@
         </el-form-item>
           <el-form-item label="状态" prop="status">
             <el-radio-group v-model="form.status">
-              <el-radio label="1">启用</el-radio>
+              <el-radio label="1">正常</el-radio>
               <el-radio label="0">禁用</el-radio>
             </el-radio-group>
         </el-form-item>
@@ -244,15 +244,36 @@ const rules: FormRules = {
 const handleQuery = async () => {
   loading.value = true
   try {
-    const { data } = await getUsers({
+    const response = await getUsers({
       ...queryParams,
       page: queryParams.pageNum,
       size: queryParams.pageSize
     })
-    userList.value = data.list
-    total.value = data.total
+    
+    // 检查响应格式，适配不同的数据结构
+    if (response.data && response.data.list) {
+      // 标准分页格式
+      userList.value = response.data.list
+      total.value = response.data.total
+    } else if (Array.isArray(response)) {
+      // 数组格式
+      userList.value = response
+      total.value = response.length
+    } else if (Array.isArray(response.data)) {
+      // 数据直接是数组
+      userList.value = response.data
+      total.value = response.data.length
+    } else {
+      // 未知格式，清空数据
+      userList.value = []
+      total.value = 0
+      console.error('未知的响应格式:', response)
+    }
   } catch (error: any) {
+    console.error('查询用户列表失败:', error)
     ElMessage.error(error.message || '查询失败')
+    userList.value = []
+    total.value = 0
   } finally {
     loading.value = false
   }
@@ -275,7 +296,8 @@ const handleAdd = () => {
 const handleEdit = (row: User) => {
   resetForm()
   dialogTitle.value = '编辑用户'
-  Object.assign(form, row)
+  const userData = {...row, status: row.status.toString()}
+  Object.assign(form, userData)
   dialogVisible.value = true
 }
 
@@ -286,13 +308,34 @@ const handleRole = async (row: User) => {
   roleDialogVisible.value = true
 
   try {
-    const [rolesRes, userRolesRes] = await Promise.all([
-      getRoles(),
-      getUserRoles(row.id)
-    ])
-    roleOptions.value = rolesRes.data.list
-    roleForm.roleIds = userRolesRes.data
+    // 获取所有角色
+    const rolesResponse = await getRoles()
+    // 获取用户角色
+    const userRolesResponse = await getUserRoles(row.id)
+    
+    // 处理角色列表数据
+    if (rolesResponse.data && rolesResponse.data.list) {
+      roleOptions.value = rolesResponse.data.list
+    } else if (Array.isArray(rolesResponse.data)) {
+      roleOptions.value = rolesResponse.data
+    } else if (Array.isArray(rolesResponse)) {
+      roleOptions.value = rolesResponse
+    } else {
+      roleOptions.value = []
+      console.error('获取角色列表格式错误:', rolesResponse)
+    }
+    
+    // 处理用户角色数据
+    if (Array.isArray(userRolesResponse)) {
+      roleForm.roleIds = userRolesResponse
+    } else if (Array.isArray(userRolesResponse.data)) {
+      roleForm.roleIds = userRolesResponse.data
+    } else {
+      roleForm.roleIds = []
+      console.error('获取用户角色格式错误:', userRolesResponse)
+    }
   } catch (error: any) {
+    console.error('获取角色信息失败:', error)
     ElMessage.error(error.message || '获取角色信息失败')
   }
 }
@@ -364,7 +407,7 @@ const submitForm = async () => {
   if (!formRef.value) return
 
   await formRef.value.validate(async (valid) => {
-        if (valid) {
+    if (valid) {
       try {
         if (form.id) {
           await updateUser(form.id, form)
@@ -376,6 +419,7 @@ const submitForm = async () => {
         dialogVisible.value = false
         handleQuery()
       } catch (error: any) {
+        console.error('保存用户失败:', error)
         ElMessage.error(error.message || (form.id ? '更新失败' : '创建失败'))
       }
     }
@@ -388,6 +432,7 @@ const submitRoleForm = async () => {
     ElMessage.success('分配角色成功')
     roleDialogVisible.value = false
   } catch (error: any) {
+    console.error('分配角色失败:', error)
     ElMessage.error(error.message || '分配角色失败')
   }
 }

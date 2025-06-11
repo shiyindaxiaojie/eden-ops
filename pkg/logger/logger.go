@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"eden-ops/internal/pkg/utils"
 	"eden-ops/pkg/config"
 	"fmt"
 	"os"
@@ -28,7 +29,7 @@ func (f *CustomFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	file = filepath.Base(file)
 
 	// 获取当前时间
-	timestamp := entry.Time.Format("2006/01/02 15:04:05.000")
+	timestamp := entry.Time.Format(utils.DateTimeMillisecond)
 
 	// 构建日志消息
 	var logMessage string

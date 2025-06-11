@@ -2,6 +2,7 @@ package repository
 
 import (
 	"eden-ops/internal/model"
+	"log"
 
 	"gorm.io/gorm"
 )
@@ -62,11 +63,16 @@ func (r *userRepository) Get(id uint) (*model.User, error) {
 
 // GetByUsername 根据用户名获取用户
 func (r *userRepository) GetByUsername(username string) (*model.User, error) {
+	log.Printf("查询用户: username=%s", username)
+
 	var user model.User
 	err := r.db.Preload("Roles").Where("username = ?", username).First(&user).Error
 	if err != nil {
+		log.Printf("查询用户失败: %v", err)
 		return nil, err
 	}
+
+	log.Printf("查询用户成功: ID=%d, Username=%s", user.ID, user.Username)
 	return &user, nil
 }
 

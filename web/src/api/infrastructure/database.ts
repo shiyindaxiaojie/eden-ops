@@ -3,7 +3,7 @@ import request from '@/utils/request'
 // 获取数据库配置列表
 export function getDatabaseList(params: any) {
   return request({
-    url: '/api/infrastructure/database',
+    url: '/api/v1/infrastructure/database',
     method: 'get',
     params
   })
@@ -12,7 +12,7 @@ export function getDatabaseList(params: any) {
 // 创建数据库配置
 export function createDatabase(data: any) {
   return request({
-    url: '/api/infrastructure/database',
+    url: '/api/v1/infrastructure/database',
     method: 'post',
     data
   })
@@ -21,7 +21,7 @@ export function createDatabase(data: any) {
 // 获取数据库配置详情
 export function getDatabaseDetail(id: number) {
   return request({
-    url: `/api/infrastructure/database/${id}`,
+    url: `/api/v1/infrastructure/database/${id}`,
     method: 'get'
   })
 }

@@ -3,7 +3,7 @@ import request from '@/utils/request'
 // 获取服务器配置列表
 export function getServerList(params: any) {
   return request({
-    url: '/api/infrastructure/server',
+    url: '/api/v1/infrastructure/server',
     method: 'get',
     params
   })
@@ -12,7 +12,7 @@ export function getServerList(params: any) {
 // 创建服务器配置
 export function createServer(data: any) {
   return request({
-    url: '/api/infrastructure/server',
+    url: '/api/v1/infrastructure/server',
     method: 'post',
     data
   })
@@ -21,7 +21,7 @@ export function createServer(data: any) {
 // 获取服务器配置详情
 export function getServerDetail(id: number) {
   return request({
-    url: `/api/infrastructure/server/${id}`,
+    url: `/api/v1/infrastructure/server/${id}`,
     method: 'get'
   })
 }

@@ -4,14 +4,28 @@
       <template #header>
         <div class="card-header">
           <span>云厂商管理</span>
-          <el-button
-            type="primary"
-            @click="handleAdd"
-          >
-            新增
-          </el-button>
+          <div>
+            <el-tooltip content="用于Kubernetes集群关联的云厂商管理" placement="top">
+              <el-button type="info" plain icon="el-icon-info" circle></el-button>
+            </el-tooltip>
+            <el-button
+              type="primary"
+              @click="handleAdd"
+            >
+              新增
+            </el-button>
+          </div>
         </div>
       </template>
+
+      <div class="description-box">
+        <el-alert
+          title="云厂商管理用于Kubernetes集群关联，支持阿里云、腾讯云、华为云等主流云厂商"
+          type="info"
+          :closable="false"
+          show-icon
+        />
+      </div>
 
       <el-form :inline="true" :model="queryParams" class="search-form">
         <el-form-item label="厂商名称">
@@ -185,7 +199,7 @@ const form = ref({
   name: '',
   code: '',
   description: '',
-  status: 'enabled'
+  status: 1
 })
 
 const rules = {
@@ -240,7 +254,7 @@ const handleAdd = () => {
     name: '',
     code: '',
     description: '',
-    status: 'enabled'
+    status: 1
   }
   dialogVisible.value = true
 }
@@ -248,8 +262,7 @@ const handleAdd = () => {
 const handleEdit = (row: any) => {
   dialogTitle.value = '编辑云厂商'
   form.value = {
-    ...row,
-    status: row.status === 1 ? 'enabled' : 'disabled'
+    ...row
   }
   dialogVisible.value = true
 }
@@ -276,8 +289,7 @@ const handleSubmit = async () => {
     if (valid) {
       try {
         const data = {
-          ...form.value,
-          status: form.value.status === 'enabled' ? 1 : 0
+          ...form.value
         }
         if (form.value.id) {
           await updateCloudProvider(form.value.id, data)
@@ -309,6 +321,10 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.description-box {
+  margin-bottom: 20px;
 }
 
 .pagination {

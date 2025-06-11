@@ -9,7 +9,7 @@ interface LoginData {
 
 export function login(data: LoginData) {
   return request({
-    url: '/api/auth/login',
+    url: '/api/v1/login',
     method: 'post',
     data
   })
@@ -60,12 +60,10 @@ export function deleteUser(id: number) {
 
 // 更新用户状态
 export function updateUserStatus(id: number, status: string) {
-  return request<any, BaseResponse<null>>({
+  return request({
     url: `/api/v1/users/${id}`,
     method: 'put',
-    data: {
     data: { status }
-    }
   })
 }
 
@@ -90,22 +88,20 @@ export function assignUserRoles(userId: number, roleIds: number[]) {
   return request<null>({
     url: `/api/v1/users/${userId}/roles`,
     method: 'put',
-    data: { roleIds }
+    data: roleIds
   })
 }
 
 export function getInfo() {
-  // 直接使用request拦截器自动添加token
-  return request<any, BaseResponse<any>>({
-    url: '/api/users/info',
+  return request({
+    url: '/api/v1/users/info',
     method: 'get'
   })
 }
 
 export function logout() {
-  // 只发送请求，不直接操作localStorage
-  return request<any, BaseResponse<null>>({
-    url: '/api/auth/logout',
+  return request({
+    url: '/api/v1/logout',
     method: 'post'
   })
 }

@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"eden-ops/internal/pkg/utils"
 	"fmt"
 	"path/filepath"
 	"runtime"
@@ -31,7 +32,7 @@ func (f *CustomFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	file = filepath.Base(file)
 
 	// 构建基本日志格式：时间 文件:行号
-	timestamp := entry.Time.Format("2006/01/02 15:04:05.000")
+	timestamp := entry.Time.Format(utils.DateTimeMillisecond)
 	msg := fmt.Sprintf("%s %s:%d", timestamp, file, line)
 
 	// 如果有耗时信息，添加耗时

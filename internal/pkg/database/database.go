@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	"eden-ops/internal/model"
@@ -37,15 +38,20 @@ func (DBVersion) TableName() string {
 
 // InitDB 初始化数据库连接
 func InitDB(cfg *config.Config) (*DB, error) {
-	log := logrus.New()
-	log.SetFormatter(&logger.CustomFormatter{
+	log.Printf("开始初始化数据库连接")
+
+	logObj := logrus.New()
+	logObj.SetFormatter(&logger.CustomFormatter{
 		TimestampFormat: "2006/01/02 15:04:05.000",
 	})
 
 	// 首先创建数据库
+	log.Printf("尝试创建数据库: %s", cfg.Database.DBName)
 	if err := createDatabase(cfg); err != nil {
+		log.Printf("创建数据库失败: %v", err)
 		return nil, fmt.Errorf("创建数据库失败: %v", err)
 	}
+	log.Printf("数据库创建成功或已存在")
 
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local&allowNativePasswords=true",
 		cfg.Database.Username,
@@ -54,24 +60,29 @@ func InitDB(cfg *config.Config) (*DB, error) {
 		cfg.Database.Port,
 		cfg.Database.DBName,
 	)
+	log.Printf("数据库连接DSN: %s", dsn)
 
 	// 配置 GORM
 	gormConfig := &gorm.Config{
-		Logger:                                   logger.NewGormLogger(log),
+		Logger:                                   logger.NewGormLogger(logObj),
 		DisableForeignKeyConstraintWhenMigrating: true, // 禁用外键约束
 	}
 
 	// 连接数据库
+	log.Printf("尝试连接数据库")
 	gormDB, err := gorm.Open(mysql.Open(dsn), gormConfig)
 	if err != nil {
+		log.Printf("连接数据库失败: %v", err)
 		return nil, fmt.Errorf("连接数据库失败: %v", err)
 	}
+	log.Printf("数据库连接成功")
 
 	db := &DB{DB: gormDB}
 
 	// 获取底层的 *sql.DB 对象
 	sqlDB, err := gormDB.DB()
 	if err != nil {
+		log.Printf("获取 *sql.DB 失败: %v", err)
 		return nil, fmt.Errorf("获取 *sql.DB 失败: %v", err)
 	}
 
@@ -79,17 +90,24 @@ func InitDB(cfg *config.Config) (*DB, error) {
 	sqlDB.SetMaxIdleConns(cfg.Database.MaxIdleConns)
 	sqlDB.SetMaxOpenConns(cfg.Database.MaxOpenConns)
 	sqlDB.SetConnMaxLifetime(cfg.Database.ConnMaxLifetime)
+	log.Printf("数据库连接池参数设置完成")
 
 	// 执行初始化脚本
-	if err := initializeDatabase(db.DB, log); err != nil {
+	log.Printf("开始执行数据库初始化")
+	if err := initializeDatabase(db.DB, logObj); err != nil {
+		log.Printf("执行初始化脚本失败: %v", err)
 		return nil, fmt.Errorf("执行初始化脚本失败: %v", err)
 	}
+	log.Printf("数据库初始化完成")
 
 	// 初始化数据库迁移
+	log.Printf("开始执行数据库迁移")
 	migrationService := NewMigrationService(db)
 	if err := migrationService.Migrate("scripts/sql"); err != nil {
+		log.Printf("数据库迁移失败: %v", err)
 		return nil, fmt.Errorf("数据库迁移失败: %v", err)
 	}
+	log.Printf("数据库迁移完成")
 
 	return db, nil
 }

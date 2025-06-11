@@ -6,6 +6,7 @@ import (
 	"eden-ops/pkg/auth"
 	"errors"
 	"fmt"
+	"log"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -39,19 +40,30 @@ func NewUserService(userRepo repository.UserRepository, jwtAuth *auth.JWTAuth) U
 
 // Login 用户登录
 func (s *userService) Login(username, password string) (string, error) {
+	log.Printf("尝试登录: 用户名=%s", username)
+
 	user, err := s.userRepo.GetByUsername(username)
 	if err != nil {
+		log.Printf("用户不存在: %v", err)
 		return "", fmt.Errorf("用户不存在: %v", err)
 	}
 
+	log.Printf("找到用户: ID=%d, 用户名=%s", user.ID, user.Username)
+
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
+		log.Printf("密码验证失败: %v", err)
 		return "", errors.New("用户名或密码错误")
 	}
 
+	log.Printf("密码验证成功，生成token")
+
 	token, err := s.jwtAuth.GenerateToken(user.ID, user.Username)
 	if err != nil {
+		log.Printf("生成token失败: %v", err)
 		return "", fmt.Errorf("生成token失败: %v", err)
 	}
+
+	log.Printf("登录成功: 用户ID=%d, 用户名=%s", user.ID, user.Username)
 
 	return token, nil
 }

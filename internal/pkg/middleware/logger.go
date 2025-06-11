@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"eden-ops/internal/pkg/utils"
 	"fmt"
 	"time"
 
@@ -38,7 +39,7 @@ func Logger() gin.HandlerFunc {
 		}
 
 		// 构建日志格式：时间 | 状态码 | 耗时ms | 客户端IP | 请求方法 "请求路径"
-		timestamp := time.Now().Format("2006/01/02 15:04:05.000")
+		timestamp := time.Now().Format(utils.DateTimeMillisecond)
 		logMsg := fmt.Sprintf("%s | %3d | %dms | %15s | %-7s %q",
 			timestamp,
 			statusCode,

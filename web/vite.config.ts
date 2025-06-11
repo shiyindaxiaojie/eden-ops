@@ -23,16 +23,14 @@ export default defineConfig({
           // 代理事件处理器，打印请求和响应
           proxy.on('proxyReq', function(proxyReq, req, res) {
             console.log('发送到服务器的请求:', {
-              path: req.url,
-              headers: proxyReq.getHeaders()
+              path: req.url
             });
           });
           
           proxy.on('proxyRes', function(proxyRes, req, res) {
             console.log('收到服务器的响应:', {
               path: req.url,
-              statusCode: proxyRes.statusCode,
-              headers: proxyRes.headers
+              statusCode: proxyRes.statusCode
             });
           });
         }
