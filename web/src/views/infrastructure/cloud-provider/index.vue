@@ -218,7 +218,7 @@ const getList = async () => {
   loading.value = true
   try {
     const res = await getCloudProviderList(queryParams.value)
-    tableData.value = res.data.items
+    tableData.value = res.data.list
     total.value = res.data.total
   } catch (error) {
     console.error('Failed to fetch cloud providers:', error)
