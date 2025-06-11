@@ -56,8 +56,6 @@ func (j *JWTAuth) GenerateToken(userID uint, username string) (string, error) {
 
 // ParseToken 解析令牌
 func (j *JWTAuth) ParseToken(tokenString string) (*CustomClaims, error) {
-	log.Printf("解析token: %s", tokenString)
-
 	token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return []byte(j.secret), nil
 	})

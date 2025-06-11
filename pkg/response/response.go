@@ -1,7 +1,6 @@
 package response
 
 import (
-	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -24,7 +23,6 @@ type PageData struct {
 
 // Success 成功响应
 func Success(c *gin.Context, data interface{}) {
-	log.Printf("返回成功响应: %+v", data)
 	c.JSON(http.StatusOK, Response{
 		Code:    0,
 		Message: "success",
@@ -34,7 +32,6 @@ func Success(c *gin.Context, data interface{}) {
 
 // Failed 失败响应
 func Failed(c *gin.Context, err error) {
-	log.Printf("返回失败响应: %v", err)
 	c.JSON(http.StatusOK, Response{
 		Code:    -1,
 		Message: err.Error(),
@@ -44,7 +41,6 @@ func Failed(c *gin.Context, err error) {
 
 // FailedWithMessage 失败响应（只有消息）
 func FailedWithMessage(c *gin.Context, message string) {
-	log.Printf("返回失败响应(消息): %s", message)
 	c.JSON(http.StatusOK, Response{
 		Code:    -1,
 		Message: message,
@@ -54,7 +50,6 @@ func FailedWithMessage(c *gin.Context, message string) {
 
 // FailedWithCode 失败响应（带错误码）
 func FailedWithCode(c *gin.Context, code int, message string) {
-	log.Printf("返回失败响应(代码: %d): %s", code, message)
 	c.JSON(http.StatusOK, Response{
 		Code:    code,
 		Message: message,
@@ -78,7 +73,6 @@ func PageSuccess(c *gin.Context, items interface{}, total int64) {
 
 // Unauthorized 未授权响应
 func Unauthorized(c *gin.Context, message string) {
-	log.Printf("返回未授权响应: %s", message)
 	FailedWithCode(c, 401, message)
 }
 

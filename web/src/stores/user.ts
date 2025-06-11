@@ -4,11 +4,6 @@ import { login, logout, getUserInfo } from '@/api/auth'
 import { getToken, setToken, removeToken } from '@/utils/auth'
 import type { User } from '@/types/api'
 
-interface LoginResponse {
-  token: string
-  user: User
-}
-
 export const useUserStore = defineStore('user', () => {
   const token = ref<string | null>(getToken())
   const user = ref<User | null>(null)
@@ -17,7 +12,8 @@ export const useUserStore = defineStore('user', () => {
   async function loginAction(username: string, password: string) {
     try {
       const res = await login({ username, password })
-      const { token: newToken, user: userInfo } = res.data
+      // login 函数已经返回了 res.data，所以这里直接解构
+      const { token: newToken, user: userInfo } = res
       token.value = newToken
       user.value = userInfo
       setToken(newToken)
@@ -47,7 +43,7 @@ export const useUserStore = defineStore('user', () => {
   async function getUserInfoAction() {
     try {
       const res = await getUserInfo()
-      user.value = res.data
+      user.value = res
       return res
     } catch (error) {
       console.error('获取用户信息失败:', error)
@@ -58,8 +54,10 @@ export const useUserStore = defineStore('user', () => {
   return {
     token,
     user,
+    userInfo: user, // 添加别名以兼容现有代码
     loginAction,
     logoutAction,
+    logout: logoutAction, // 添加别名以兼容现有代码
     getUserInfoAction
   }
 })

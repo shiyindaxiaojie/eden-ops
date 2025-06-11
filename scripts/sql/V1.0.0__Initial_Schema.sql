@@ -1,5 +1,3 @@
--- 数据库初始化脚本
-
 -- 删除已存在的表（如果存在）
 DROP TABLE IF EXISTS `sys_role_menu`;
 DROP TABLE IF EXISTS `sys_user_role`;
@@ -95,6 +93,7 @@ SET @admin_role_id = NULL;
 SELECT @admin_role_id := id FROM `sys_role` WHERE `code` = 'admin';
 
 -- 创建管理员用户
+-- 密码: admin123 -> SHA256: 240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9 -> bcrypt
 INSERT INTO `sys_user` (
   `username`,
   `password`,
@@ -103,7 +102,7 @@ INSERT INTO `sys_user` (
   `status`
 ) SELECT
   'admin',
-  '$2a$10$tbvRtSzR1tF3bDGVpkytseDPeVX.xa2rU5DxYaYSF2FqUel2yX/BO',
+  '$2a$10$RBVyo4ojLZEG.j.uJnpcEuhY4DRC0TChUAdo1XBnlKB/mKnZDEbUS',
   '系统管理员',
   'admin@example.com',
   1

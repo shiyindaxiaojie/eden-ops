@@ -8,7 +8,7 @@ interface LoginRequest {
 }
 
 // 登录响应数据
-interface LoginResponse {
+export interface LoginResponse {
   token: string
   user: User
 }

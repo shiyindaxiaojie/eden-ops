@@ -4,6 +4,7 @@ import (
 	"eden-ops/internal/handler"
 	middleware "eden-ops/internal/pkg/middleware"
 	"eden-ops/pkg/auth"
+	"log"
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,9 +23,17 @@ func NewRouter(
 	authHandler *handler.AuthHandler,
 ) *gin.Engine {
 	// 使用自定义Logger替代默认Logger
-	gin.SetMode(gin.ReleaseMode)
+	gin.SetMode(gin.DebugMode) // 临时改为调试模式以获取更多日志
 	r := gin.New()
-	r.Use(gin.Recovery())
+
+	// 自定义恢复中间件，记录panic信息
+	r.Use(gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
+		log.Printf("=== PANIC 恢复 ===")
+		log.Printf("请求路径: %s", c.Request.URL.Path)
+		log.Printf("请求方法: %s", c.Request.Method)
+		log.Printf("Panic 信息: %v", recovered)
+		c.JSON(500, gin.H{"error": "Internal Server Error"})
+	}))
 
 	// 注册中间件
 	r.Use(middleware.Logger())

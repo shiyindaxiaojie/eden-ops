@@ -4,6 +4,7 @@ import (
 	"context"
 	"eden-ops/internal/handler"
 	"eden-ops/internal/pkg/database"
+	"eden-ops/internal/pkg/logger"
 	"eden-ops/internal/repository"
 	"eden-ops/internal/router"
 	"eden-ops/internal/service"
@@ -11,13 +12,11 @@ import (
 	"eden-ops/pkg/config"
 	"eden-ops/pkg/logger"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -109,15 +108,11 @@ func getInitScripts() []string {
 }
 
 func main() {
-	// 获取调用信息，用于日志
-	_, filePath, line, _ := runtime.Caller(0)
-	file := filepath.Base(filePath)
-
 	// 记录开始时间
 	startTime := time.Now()
 
 	// 加载配置
-	log.Printf("%s:%d 正在加载配置...", file, line)
+	logger.Info("正在加载配置...")
 
 	// 列出所有配置文件
 	configFiles := []string{"configs/config.yaml"}
@@ -126,41 +121,45 @@ func main() {
 		configFiles = append(configFiles, envFile)
 	}
 
-	log.Printf("%s:%d 加载配置文件: %s", file, line, strings.Join(configFiles, ", "))
+	logger.Info("加载配置文件: %s", strings.Join(configFiles, ", "))
 
 	cfg, err := config.LoadConfigFromYAML("configs/config.yaml")
 	if err != nil {
-		log.Fatalf("%s:%d 加载配置文件失败: %v", file, line, err)
+		logger.Error("加载配置文件失败: %v", err)
+		os.Exit(1)
 	}
 
-	log.Printf("%s:%d 配置加载成功, 服务端口: %d, 数据库: %s@%s:%d/%s",
-		file, line, cfg.Server.Port, cfg.Database.Username, cfg.Database.Host,
+	logger.Info("配置加载成功, 服务端口: %d, 数据库: %s@%s:%d/%s",
+		cfg.Server.Port, cfg.Database.Username, cfg.Database.Host,
 		cfg.Database.Port, cfg.Database.DBName)
 
 	// 初始化日志
-	log.Printf("%s:%d 正在初始化日志...", file, line)
+	logger.Info("正在初始化日志...")
 	if err := logger.Init(cfg.Log); err != nil {
-		log.Fatalf("%s:%d 初始化日志失败: %v", file, line, err)
+		logger.Error("初始化日志失败: %v", err)
+		os.Exit(1)
 	}
-	log.Printf("%s:%d 日志初始化成功", file, line)
+	logger.Info("日志初始化成功")
 
 	// 获取日志实例
 	logInstance := logger.GetLogger()
 	if logInstance == nil {
-		log.Fatalf("%s:%d 获取日志实例失败，日志未正确初始化", file, line)
+		logger.Error("获取日志实例失败，日志未正确初始化")
+		os.Exit(1)
 	}
 
 	// 初始化脚本信息
 	initScripts := getInitScripts()
-	log.Printf("%s:%d 加载脚本:\n%s", file, line, strings.Join(initScripts, "\n"))
+	logger.Info("加载脚本:\n%s", strings.Join(initScripts, "\n"))
 
 	// 初始化数据库
-	log.Printf("%s:%d 初始化数据库...", file, line)
+	logger.Info("初始化数据库...")
 	dbInstance, err := database.InitDB(cfg)
 	if err != nil {
-		log.Fatalf("%s:%d 初始化数据库失败: %v", file, line, err)
+		logger.Error("初始化数据库失败: %v", err)
+		os.Exit(1)
 	}
-	log.Printf("%s:%d 数据库初始化成功", file, line)
+	logger.Info("数据库初始化成功")
 
 	// 获取GORM DB实例
 	db := dbInstance.DB
@@ -204,7 +203,7 @@ func main() {
 	k8sConfigHandler := handler.NewK8sConfigHandler(k8sConfigService)
 
 	// 初始化路由
-	log.Printf("%s:%d 初始化路由...", file, line)
+	logger.Info("初始化路由...")
 	r := router.NewRouter(
 		jwtAuth,
 		cloudAccountHandler,
@@ -221,17 +220,18 @@ func main() {
 	// 列出所有API接口
 	apiEndpoints := getAPIEndpoints(r)
 	for _, endpoint := range apiEndpoints {
-		log.Printf("%s:%d 注册路由: %s", file, line, endpoint)
+		logger.Debug("注册路由: %s", endpoint)
 	}
 
 	// 统计API接口
 	apiCount := countAPIEndpoints(r)
-	log.Printf("%s:%d 路由初始化成功，共有 %d 个 API 接口", file, line, apiCount)
+	logger.Info("路由初始化成功，共有 %d 个 API 接口", apiCount)
 
 	// 启动服务器
 	localIP := getLocalIP()
-	addr := fmt.Sprintf("%s:%d", localIP, cfg.Server.Port)
-	log.Printf("%s:%d 正在启动服务器，监听地址: %s", file, line, addr)
+	// 监听所有接口，以便前端代理可以连接
+	addr := fmt.Sprintf("0.0.0.0:%d", cfg.Server.Port)
+	logger.Info("正在启动服务器，监听地址: %s (本机IP: %s)", addr, localIP)
 
 	srv := &http.Server{
 		Addr:    addr,
@@ -241,14 +241,15 @@ func main() {
 	// 在一个单独的goroutine中启动服务器
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("%s:%d 服务器启动失败: %v", file, line, err)
+			logger.Error("服务器启动失败: %v", err)
+			os.Exit(1)
 		}
 	}()
 
 	// 计算启动耗时
 	elapsedTime := time.Since(startTime)
 
-	log.Printf("%s:%d 服务启动成功，耗时 %.3f 毫秒", file, line, float64(elapsedTime.Microseconds())/1000.0)
+	logger.Info("服务启动成功，耗时 %.3f 毫秒", float64(elapsedTime.Microseconds())/1000.0)
 
 	// 等待中断信号以优雅地关闭服务器
 	quit := make(chan os.Signal, 1)
@@ -257,15 +258,16 @@ func main() {
 	// kill -9 发送 syscall.SIGKILL，但无法被捕获，所以不需要添加
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	log.Printf("%s:%d 正在关闭服务器...", file, line)
+	logger.Info("正在关闭服务器...")
 
 	// 创建一个5秒的上下文用于超时
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("%s:%d 服务器强制关闭: %v", file, line, err)
+		logger.Error("服务器强制关闭: %v", err)
+		os.Exit(1)
 	}
 
-	log.Printf("%s:%d 服务器已优雅关闭", file, line)
+	logger.Info("服务器已优雅关闭")
 }

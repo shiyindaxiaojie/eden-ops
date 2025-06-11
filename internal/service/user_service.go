@@ -4,9 +4,9 @@ import (
 	"eden-ops/internal/model"
 	"eden-ops/internal/repository"
 	"eden-ops/pkg/auth"
+	"eden-ops/pkg/logger"
 	"errors"
 	"fmt"
-	"log"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -40,32 +40,43 @@ func NewUserService(userRepo repository.UserRepository, jwtAuth *auth.JWTAuth) U
 
 // Login 用户登录
 func (s *userService) Login(username, password string) (string, error) {
-	log.Printf("尝试登录: 用户名=%s", username)
-
 	user, err := s.userRepo.GetByUsername(username)
 	if err != nil {
-		log.Printf("用户不存在: %v", err)
-		return "", fmt.Errorf("用户不存在: %v", err)
-	}
-
-	log.Printf("找到用户: ID=%d, 用户名=%s", user.ID, user.Username)
-
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
-		log.Printf("密码验证失败: %v", err)
+		logger.Info("登录验证失败: 用户不存在, username=%s", username)
 		return "", errors.New("用户名或密码错误")
 	}
 
-	log.Printf("密码验证成功，生成token")
+	// 验证密码
+	if err := s.verifyPassword(user.Password, password); err != nil {
+		logger.Info("登录验证失败: 密码错误, username=%s", username)
+		return "", errors.New("用户名或密码错误")
+	}
 
 	token, err := s.jwtAuth.GenerateToken(user.ID, user.Username)
 	if err != nil {
-		log.Printf("生成token失败: %v", err)
+		logger.Error("登录失败: 生成token错误, username=%s, error=%v", username, err)
 		return "", fmt.Errorf("生成token失败: %v", err)
 	}
 
-	log.Printf("登录成功: 用户ID=%d, 用户名=%s", user.ID, user.Username)
-
 	return token, nil
+}
+
+// verifyPassword 验证密码（支持前端 SHA256 加密）
+func (s *userService) verifyPassword(hashedPassword, inputPassword string) error {
+	// 直接验证 bcrypt 哈希（兼容旧的直接密码存储）
+	if err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(inputPassword)); err == nil {
+		return nil
+	}
+
+	// 如果输入密码长度为64，可能是前端 SHA256 加密的结果
+	if len(inputPassword) == 64 {
+		// 这种情况下，数据库中应该存储的是 SHA256 密码的 bcrypt 哈希
+		// 但当前数据库存储的是原始密码的 bcrypt 哈希，所以这里会失败
+		// 我们需要更新数据库或者提供迁移方案
+		logger.Warn("检测到SHA256密码但数据库存储原始密码哈希，需要更新数据库")
+	}
+
+	return fmt.Errorf("密码验证失败")
 }
 
 // hashPassword 加密密码
