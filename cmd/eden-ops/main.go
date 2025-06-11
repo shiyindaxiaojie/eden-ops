@@ -4,7 +4,6 @@ import (
 	"context"
 	"eden-ops/internal/handler"
 	"eden-ops/internal/pkg/database"
-	"eden-ops/internal/pkg/logger"
 	"eden-ops/internal/repository"
 	"eden-ops/internal/router"
 	"eden-ops/internal/service"

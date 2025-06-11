@@ -33,6 +33,10 @@
             <el-icon><Connection /></el-icon>
             <template #title>Kubernetes</template>
           </el-menu-item>
+          <el-menu-item index="/infrastructure/cloud-provider">
+            <el-icon><Cloudy /></el-icon>
+            <template #title>云厂商管理</template>
+          </el-menu-item>
           <el-menu-item index="/infrastructure/cloud-account">
             <el-icon><Cloudy /></el-icon>
             <template #title>云账号管理</template>
@@ -101,7 +105,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Odometer,
   Location,
@@ -148,9 +152,18 @@ const toggleSidebar = () => {
 const handleCommand = async (command: string) => {
   if (command === 'logout') {
     try {
+      await ElMessageBox.confirm('确认退出系统吗？', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      })
+
       await userStore.logout()
       ElMessage.success('已退出登录')
     } catch (error) {
+      if (error === 'cancel') {
+        return // 用户取消退出
+      }
       console.error('退出登录失败:', error)
       ElMessage.error('退出登录失败，请重试')
     }

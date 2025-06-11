@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { login, logout, getUserInfo } from '@/api/auth'
-import { getToken, setToken, removeToken } from '@/utils/auth'
+import { getToken, setToken, removeToken, clearAuth } from '@/utils/auth'
 import type { User } from '@/types/api'
+import router from '@/router'
 
 export const useUserStore = defineStore('user', () => {
   const token = ref<string | null>(getToken())
@@ -32,9 +33,16 @@ export const useUserStore = defineStore('user', () => {
       await logout()
       token.value = null
       user.value = null
-      removeToken()
+      clearAuth() // 清除所有认证信息
+      // 跳转到登录页
+      router.push('/login')
     } catch (error) {
       console.error('登出失败:', error)
+      // 即使后端登出失败，也要清除本地状态
+      token.value = null
+      user.value = null
+      clearAuth() // 清除所有认证信息
+      router.push('/login')
       throw error
     }
   }
