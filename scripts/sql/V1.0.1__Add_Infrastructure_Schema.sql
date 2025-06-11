@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS `infra_k8s_config` (
     `kubeconfig` TEXT NOT NULL,
     `description` VARCHAR(500),
     `status` TINYINT DEFAULT 1,
+    `sync_interval` INT DEFAULT 30 COMMENT '同步间隔(秒)',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     `deleted_at` datetime DEFAULT NULL COMMENT '删除时间'

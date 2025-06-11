@@ -237,7 +237,7 @@ const handleQuery = async () => {
       page: queryParams.pageNum,
       size: queryParams.pageSize
     })
-    serverList.value = data.items
+    serverList.value = data.list
     total.value = data.total
   } catch (error: any) {
     ElMessage.error(error.message || '查询失败')

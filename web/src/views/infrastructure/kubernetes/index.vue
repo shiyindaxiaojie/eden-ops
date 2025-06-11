@@ -6,7 +6,7 @@
           <div class="header-left">
             <h2 class="title">Kubernetes 集群管理</h2>
           </div>
-          <el-button type="primary" @click="handleAdd">新增集群</el-button>
+          <el-button type="primary" @click="handleAdd">接入集群</el-button>
         </div>
       </template>
 
@@ -15,8 +15,7 @@
           <el-input v-model="queryParams.name" placeholder="请输入集群名称" clearable />
         </el-form-item>
         <el-form-item label="云厂商" prop="providerId">
-          <el-select v-model="queryParams.providerId" placeholder="请选择云厂商" clearable>
-            <el-option label="本地机房" :value="null" />
+          <el-select v-model="queryParams.providerId" placeholder="请选择云厂商" clearable style="min-width: 200px;">
             <el-option
               v-for="item in providerOptions"
               :key="item.id"
@@ -36,7 +35,7 @@
         <el-table-column prop="name" label="集群名称" min-width="120" />
         <el-table-column prop="providerName" label="云厂商" min-width="120">
           <template #default="{ row }">
-            {{ row.providerName || '本地机房' }}
+            {{ row.providerName }}
           </template>
         </el-table-column>
         <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
@@ -83,7 +82,6 @@
         </el-form-item>
         <el-form-item label="云厂商" prop="providerId">
           <el-select v-model="form.providerId" placeholder="请选择云厂商" clearable>
-            <el-option label="本地机房" :value="null" />
             <el-option
               v-for="item in providerOptions"
               :key="item.id"
@@ -112,6 +110,16 @@
             <el-radio :label="1">启用</el-radio>
             <el-radio :label="0">禁用</el-radio>
           </el-radio-group>
+        </el-form-item>
+        <el-form-item label="同步间隔" prop="syncInterval">
+          <el-input-number
+            v-model="form.syncInterval"
+            :min="30"
+            :step="10"
+            placeholder="同步间隔（秒）"
+            style="width: 100%;"
+          />
+          <div style="font-size: 12px; color: #999; margin-top: 4px;">最低30秒，用于定时同步集群状态</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -152,7 +160,8 @@ const form = ref({
   providerId: null,
   kubeconfig: '',
   description: '',
-  status: 'enabled'
+  status: 1,
+  syncInterval: 30
 })
 
 const rules = {
@@ -167,7 +176,7 @@ const rules = {
 const getProviderOptions = async () => {
   try {
     const res = await getCloudProviderList({ pageSize: 100 })
-    providerOptions.value = res.data.items
+    providerOptions.value = res.data.list
   } catch (error) {
     console.error('Failed to fetch cloud providers:', error)
   }
@@ -177,7 +186,7 @@ const getList = async () => {
   loading.value = true
   try {
     const res = await getKubernetesList(queryParams.value)
-    clusterList.value = res.data.items
+    clusterList.value = res.data.list
     total.value = res.data.total
   } catch (error) {
     console.error('Failed to fetch clusters:', error)
@@ -207,14 +216,15 @@ const handlePageChange = (page: number) => {
 }
 
 const handleAdd = () => {
-  dialogTitle.value = '新增集群'
+  dialogTitle.value = '接入集群'
   form.value = {
     id: undefined,
     name: '',
     providerId: null,
     kubeconfig: '',
     description: '',
-    status: 'enabled'
+    status: 1,
+    syncInterval: 30
   }
   dialogVisible.value = true
 }
@@ -223,7 +233,8 @@ const handleEdit = (row: any) => {
   dialogTitle.value = '编辑集群'
   form.value = {
     ...row,
-    status: row.status === 1 ? 'enabled' : 'disabled'
+    status: row.status,
+    syncInterval: row.syncInterval || 30
   }
   dialogVisible.value = true
 }
@@ -250,20 +261,20 @@ const handleSubmit = async () => {
     if (valid) {
       try {
         const data = {
-          ...form.value,
-          status: form.value.status === 'enabled' ? 1 : 0
+          ...form.value
         }
         if (form.value.id) {
           await updateKubernetes(form.value.id, data)
           ElMessage.success('更新成功')
         } else {
           await createKubernetes(data)
-          ElMessage.success('创建成功')
+          ElMessage.success('接入成功')
         }
         dialogVisible.value = false
         getList()
       } catch (error) {
         console.error('Failed to submit form:', error)
+        ElMessage.error('操作失败，请检查输入信息')
       }
     }
   })

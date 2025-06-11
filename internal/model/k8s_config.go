@@ -10,7 +10,10 @@ type K8sConfig struct {
 	Name         string     `gorm:"type:varchar(100);not null" json:"name"`
 	Description  string     `gorm:"type:text" json:"description"`
 	Kubeconfig   string     `gorm:"type:text;not null" json:"kubeconfig"`
-	Status       string     `gorm:"type:varchar(20);default:'Pending'" json:"status"`
+	ProviderId   *int64     `gorm:"column:provider_id" json:"providerId"`
+	ProviderName string     `gorm:"-" json:"providerName"`
+	Status       int        `gorm:"type:tinyint;default:1" json:"status"`
+	SyncInterval int        `gorm:"type:int;default:30;comment:同步间隔(秒)" json:"syncInterval"`
 	Version      string     `gorm:"type:varchar(20)" json:"version"`
 	LastSyncTime *time.Time `json:"last_sync_time"`
 	CreatedAt    time.Time  `json:"created_at"`

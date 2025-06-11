@@ -80,7 +80,10 @@ func (r *k8sConfigRepository) List(page, pageSize int, name string) (int64, []mo
 	}
 
 	offset := (page - 1) * pageSize
-	if err := query.Offset(offset).Limit(pageSize).Find(&configs).Error; err != nil {
+	if err := query.Offset(offset).Limit(pageSize).
+		Select("infra_k8s_config.*, infra_cloud_provider.name as provider_name").
+		Joins("LEFT JOIN infra_cloud_provider ON infra_k8s_config.provider_id = infra_cloud_provider.id").
+		Find(&configs).Error; err != nil {
 		return 0, nil, err
 	}
 
