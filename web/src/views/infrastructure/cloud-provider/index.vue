@@ -5,9 +5,6 @@
         <div class="card-header">
           <span>云厂商管理</span>
           <div>
-            <el-tooltip content="用于Kubernetes集群关联的云厂商管理" placement="top">
-              <el-button type="info" plain icon="el-icon-info" circle></el-button>
-            </el-tooltip>
             <el-button
               type="primary"
               @click="handleAdd"
@@ -82,6 +79,20 @@
             <el-tag :type="row.status === 1 ? 'success' : 'danger'">
               {{ row.status === 1 ? '启用' : '禁用' }}
             </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column
+          label="状态"
+          width="80"
+          align="center"
+        >
+          <template #default="{ row }">
+            <el-switch
+              v-model="row.status"
+              :active-value="1"
+              :inactive-value="0"
+              @change="handleStatusChange(row)"
+            />
           </template>
         </el-table-column>
         <el-table-column
@@ -265,6 +276,23 @@ const handleEdit = (row: any) => {
     ...row
   }
   dialogVisible.value = true
+}
+
+const handleStatusChange = async (row: any) => {
+  try {
+    const statusText = row.status === 1 ? '启用' : '禁用'
+    await updateCloudProvider(row.id, {
+      ...row,
+      status: row.status
+    })
+    ElMessage.success(`${statusText}成功`)
+    // 不需要重新加载列表，因为状态已经在前端更新了
+  } catch (error) {
+    console.error('Failed to update status:', error)
+    // 如果更新失败，恢复原来的状态
+    row.status = row.status === 1 ? 0 : 1
+    ElMessage.error('状态更新失败，请重试')
+  }
 }
 
 const handleDelete = (row: any) => {
