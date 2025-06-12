@@ -29,15 +29,16 @@ CREATE TABLE IF NOT EXISTS `infra_k8s_config` (
     `description` VARCHAR(500),
     `status` TINYINT DEFAULT 1,
     `sync_interval` INT DEFAULT 30 COMMENT '同步间隔(秒)',
-    `version` VARCHAR(20) DEFAULT NULL COMMENT 'Kubernetes版本',
-    `context` VARCHAR(100) DEFAULT NULL COMMENT 'K8s上下文',
+    `version` VARCHAR(20) COMMENT 'Kubernetes版本',
+    `context` VARCHAR(100) COMMENT '上下文',
     `node_count` INT DEFAULT 0 COMMENT '节点数量',
     `pod_count` INT DEFAULT 0 COMMENT 'Pod数量',
-    `cpu_total` VARCHAR(20) DEFAULT NULL COMMENT 'CPU总量',
-    `cpu_used` VARCHAR(20) DEFAULT NULL COMMENT 'CPU使用量',
-    `memory_total` VARCHAR(20) DEFAULT NULL COMMENT '内存总量',
-    `memory_used` VARCHAR(20) DEFAULT NULL COMMENT '内存使用量',
-    `last_sync_time` DATETIME DEFAULT NULL COMMENT '最后同步时间',
+    `cpu_total` VARCHAR(20) COMMENT 'CPU总量',
+    `cpu_used` VARCHAR(20) COMMENT 'CPU使用量',
+    `memory_total` VARCHAR(20) COMMENT '内存总量',
+    `memory_used` VARCHAR(20) COMMENT '内存使用量',
+    `workload_count` INT DEFAULT 0 COMMENT '工作负载数量',
+    `last_sync_time` TIMESTAMP NULL COMMENT '最后同步时间',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     `deleted_at` datetime DEFAULT NULL COMMENT '删除时间'
@@ -114,12 +115,38 @@ CREATE TABLE IF NOT EXISTS `infra_k8s_workload` (
   `replicas` int DEFAULT '0' COMMENT '副本数',
   `ready_replicas` int DEFAULT '0' COMMENT '就绪副本数',
   `status` varchar(20) DEFAULT NULL COMMENT '状态',
+  `labels` text DEFAULT NULL COMMENT '标签(JSON格式)',
+  `selector` text DEFAULT NULL COMMENT '选择器(JSON格式)',
+  `images` text DEFAULT NULL COMMENT '容器镜像列表(JSON格式)',
+  `cpu_request` varchar(20) DEFAULT NULL COMMENT 'CPU请求',
+  `cpu_limit` varchar(20) DEFAULT NULL COMMENT 'CPU限制',
+  `memory_request` varchar(20) DEFAULT NULL COMMENT '内存请求',
+  `memory_limit` varchar(20) DEFAULT NULL COMMENT '内存限制',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted_at` datetime DEFAULT NULL COMMENT '删除时间',
   PRIMARY KEY (`id`),
-  KEY `idx_config_id` (`config_id`)
+  KEY `idx_config_id` (`config_id`),
+  KEY `idx_namespace` (`namespace`),
+  KEY `idx_kind` (`kind`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Kubernetes工作负载';
+
+-- 创建K8s工作负载命名空间表
+CREATE TABLE IF NOT EXISTS `infra_k8s_workload_namespace` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '命名空间ID',
+  `config_id` bigint NOT NULL COMMENT 'K8s配置ID',
+  `namespace` varchar(255) NOT NULL COMMENT '命名空间名称',
+  `workload_count` int DEFAULT 0 COMMENT '工作负载数量',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted_at` datetime DEFAULT NULL COMMENT '删除时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_config_namespace` (`config_id`, `namespace`),
+  KEY `idx_config_id` (`config_id`),
+  KEY `idx_namespace` (`namespace`),
+  KEY `idx_deleted_at` (`deleted_at`),
+  CONSTRAINT `fk_k8s_namespace_config` FOREIGN KEY (`config_id`) REFERENCES `infra_k8s_config` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='K8s工作负载命名空间表';
 
 -- 初始化云厂商数据
 INSERT INTO `infra_cloud_provider` (`name`, `code`, `description`, `status`) VALUES 

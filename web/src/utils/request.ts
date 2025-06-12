@@ -34,30 +34,42 @@ service.interceptors.response.use(
   (response: AxiosResponse<BaseResponse<any>>) => {
     // 调试日志
     console.log('响应数据:', response)
-    
-    const res = response.data
-    
-    // 检查响应是否存在
-    if (!res) {
-      ElMessage.error('响应数据为空')
-      return Promise.reject(new Error('响应数据为空'))
+
+    // 检查HTTP状态码，200表示成功
+    if (response.status === 200) {
+      return response.data
+    } else {
+      ElMessage.error(response.statusText || '请求失败')
+      return Promise.reject(new Error(response.statusText || '请求失败'))
     }
-    
-    // 检查响应状态码
-    if (res.code !== 0) {
-      ElMessage.error(res.message || '请求失败')
-      return Promise.reject(new Error(res.message || '请求失败'))
-    }
-    
-    // 返回整个响应，而不仅仅是data部分
-    return res
   },
   (error) => {
     // 调试日志
     console.error('响应错误:', error)
     console.error('错误详情:', error.response)
-    
-    const message = error.response?.data?.message || error.message || '请求失败'
+
+    // 处理HTTP错误状态码
+    let message = error.message
+    if (error.response) {
+      const status = error.response.status
+      switch (status) {
+        case 401:
+          message = '未授权，请重新登录'
+          break
+        case 403:
+          message = '拒绝访问'
+          break
+        case 404:
+          message = '请求错误，未找到该资源'
+          break
+        case 500:
+          message = '服务器内部错误'
+          break
+        default:
+          message = error.response.data?.message || error.message
+      }
+    }
+
     ElMessage.error(message)
     return Promise.reject(error)
   }

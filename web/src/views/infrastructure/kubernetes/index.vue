@@ -24,8 +24,8 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态" prop="status">
-          <el-select v-model="queryParams.status" placeholder="请选择状态" clearable>
+        <el-form-item label="同步开关" prop="status">
+          <el-select v-model="queryParams.status" placeholder="请选择开关" clearable style="min-width: 120px;">
             <el-option label="全部" value="" />
             <el-option label="启用" :value="1" />
             <el-option label="禁用" :value="0" />
@@ -48,8 +48,20 @@
         <el-table-column prop="description" label="描述" width="150" show-overflow-tooltip />
         <el-table-column prop="context" label="Context" width="90" show-overflow-tooltip />
         <el-table-column prop="version" label="版本" width="120" show-overflow-tooltip />
-        <el-table-column prop="nodeCount" label="节点数" width="70" align="center" />
+        <el-table-column label="工作负载" width="100" align="center">
+          <template #default="{ row }">
+            <el-button
+              type="primary"
+              link
+              @click="handleViewWorkloads(row)"
+              style="font-weight: bold;"
+            >
+              {{ row.workloadCount || 0 }}
+            </el-button>
+          </template>
+        </el-table-column>
         <el-table-column prop="podCount" label="Pod数" width="70" align="center" />
+        <el-table-column prop="nodeCount" label="节点数" width="70" align="center" />
         <el-table-column label="CPU" width="120" align="center">
           <template #default="{ row }">
             <div v-if="row.cpuUsed && row.cpuTotal">
@@ -78,7 +90,7 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="90" align="center">
+        <el-table-column prop="status" label="同步开关" width="90" align="center">
           <template #default="{ row }">
             <el-switch
               v-model="row.status"
@@ -88,10 +100,9 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link @click="handleEdit(row)">编辑</el-button>
-            <el-button type="success" link @click="handleViewWorkloads(row)">工作负载</el-button>
             <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -137,7 +148,7 @@
           <el-input
             v-model="form.kubeconfig"
             type="textarea"
-            :rows="10"
+            :rows="8"
             placeholder="请输入Kubeconfig配置"
           />
           <div style="margin-top: 8px;">
@@ -165,9 +176,9 @@
             :min="30"
             :step="10"
             placeholder="同步间隔（秒）"
-            style="width: 100%;"
+            style="width: 120px;"
           />
-          <div style="font-size: 12px; color: #999; margin-top: 4px;">最低30秒，用于定时同步集群状态</div>
+          <div style="font-size: 12px; color: #999; margin: 4px 4px;">最低30秒，用于定时同步集群状态</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -184,8 +195,11 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance } from 'element-plus'
+import { useRouter } from 'vue-router'
 import { getKubernetesList, createKubernetes, updateKubernetes, deleteKubernetes } from '@/api/infrastructure/kubernetes'
 import { getCloudProviderList } from '@/api/infrastructure/cloud-provider'
+
+const router = useRouter()
 
 const loading = ref(false)
 const clusterList = ref([])

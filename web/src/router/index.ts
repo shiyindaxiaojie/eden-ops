@@ -52,6 +52,13 @@ export const constantRoutes: Array<RouteRecordRaw> = [
         hidden: true
       },
       {
+        path: 'kubernetes/workloads',
+        component: () => import('@/views/infrastructure/kubernetes/workloads.vue'),
+        name: 'KubernetesWorkloads',
+        meta: { title: 'Kubernetes 工作负载', activeMenu: '/infrastructure/kubernetes' },
+        hidden: true
+      },
+      {
         path: 'cloud-provider',
         name: 'CloudProvider',
         component: () => import('@/views/infrastructure/cloud-provider/index.vue'),

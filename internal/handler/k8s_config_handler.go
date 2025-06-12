@@ -50,6 +50,35 @@ func (h *K8sConfigHandler) List(c *gin.Context) {
 	response.PageSuccess(c, configs, total)
 }
 
+// ListWithWorkloadCount 获取Kubernetes配置列表（包含工作负载统计）
+func (h *K8sConfigHandler) ListWithWorkloadCount(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
+	name := c.Query("name")
+
+	var status *int
+	if statusStr := c.Query("status"); statusStr != "" {
+		if s, err := strconv.Atoi(statusStr); err == nil {
+			status = &s
+		}
+	}
+
+	var providerId *int64
+	if providerIdStr := c.Query("providerId"); providerIdStr != "" {
+		if p, err := strconv.ParseInt(providerIdStr, 10, 64); err == nil {
+			providerId = &p
+		}
+	}
+
+	configs, total, err := h.k8sConfigService.ListWithWorkloadCount(page, pageSize, name, status, providerId)
+	if err != nil {
+		response.Failed(c, err)
+		return
+	}
+
+	response.PageSuccess(c, configs, total)
+}
+
 // Get 获取Kubernetes配置详情
 func (h *K8sConfigHandler) Get(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)

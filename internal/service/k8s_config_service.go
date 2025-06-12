@@ -4,6 +4,7 @@ import (
 	"context"
 	"eden-ops/internal/model"
 	"eden-ops/internal/repository"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -25,6 +26,7 @@ type K8sConfigService interface {
 	Delete(id uint) error
 	Get(id uint) (*model.K8sConfig, error)
 	List(page, pageSize int, name string, status *int, providerId *int64) ([]*model.K8sConfig, int64, error)
+	ListWithWorkloadCount(page, pageSize int, name string, status *int, providerId *int64) ([]*model.K8sConfigResponse, int64, error)
 	TestConnection(config *model.K8sConfig) error
 	SyncCluster(id int64) error
 	GetNamespaces(id int64) ([]string, error)
@@ -32,15 +34,19 @@ type K8sConfigService interface {
 
 // k8sConfigService Kubernetes配置服务实现
 type k8sConfigService struct {
-	repo            repository.K8sConfigRepository
-	workloadService K8sWorkloadService
+	repo                repository.K8sConfigRepository
+	workloadService     K8sWorkloadService
+	workloadRepo        repository.K8sWorkloadRepository
+	namespaceRepository repository.K8sWorkloadNamespaceRepository
 }
 
 // NewK8sConfigService 创建Kubernetes配置服务
-func NewK8sConfigService(repo repository.K8sConfigRepository, workloadService K8sWorkloadService) K8sConfigService {
+func NewK8sConfigService(repo repository.K8sConfigRepository, workloadService K8sWorkloadService, workloadRepo repository.K8sWorkloadRepository, namespaceRepo repository.K8sWorkloadNamespaceRepository) K8sConfigService {
 	return &k8sConfigService{
-		repo:            repo,
-		workloadService: workloadService,
+		repo:                repo,
+		workloadService:     workloadService,
+		workloadRepo:        workloadRepo,
+		namespaceRepository: namespaceRepo,
 	}
 }
 
@@ -110,6 +116,21 @@ func (s *k8sConfigService) List(page, pageSize int, name string, status *int, pr
 	var result []*model.K8sConfig
 	for i := range configs {
 		result = append(result, &configs[i])
+	}
+
+	return result, total, nil
+}
+
+// ListWithWorkloadCount 获取Kubernetes配置列表（包含工作负载统计）
+func (s *k8sConfigService) ListWithWorkloadCount(page, pageSize int, name string, status *int, providerId *int64) ([]*model.K8sConfigResponse, int64, error) {
+	total, configs, err := s.repo.List(page, pageSize, name, status, providerId)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var result []*model.K8sConfigResponse
+	for i := range configs {
+		result = append(result, configs[i].ToResponse())
 	}
 
 	return result, total, nil
@@ -240,13 +261,60 @@ func (s *k8sConfigService) SyncCluster(id int64) error {
 		return fmt.Errorf("failed to sync workloads: %v", err)
 	}
 
+	// 同步命名空间信息
+	if err := s.syncNamespaces(id, workloads); err != nil {
+		return fmt.Errorf("failed to sync namespaces: %v", err)
+	}
+
+	// 更新工作负载数量到配置表
+	config.WorkloadCount = len(workloads)
+	if err := s.repo.Update(config); err != nil {
+		return fmt.Errorf("failed to update workload count: %v", err)
+	}
+
 	return nil
 }
 
 // GetNamespaces 获取命名空间列表
 func (s *k8sConfigService) GetNamespaces(id int64) ([]string, error) {
-	// 简化实现，返回默认命名空间
-	return []string{"default", "kube-system", "kube-public"}, nil
+	namespaces, err := s.namespaceRepository.GetByConfigID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []string
+	for _, ns := range namespaces {
+		result = append(result, ns.Namespace)
+	}
+	return result, nil
+}
+
+// syncNamespaces 同步命名空间信息
+func (s *k8sConfigService) syncNamespaces(configID int64, workloads []model.K8sWorkload) error {
+	// 统计每个命名空间的工作负载数量
+	namespaceCount := make(map[string]int)
+	for _, workload := range workloads {
+		namespaceCount[workload.Namespace]++
+	}
+
+	// 删除旧的命名空间记录
+	if err := s.namespaceRepository.DeleteByConfigID(configID); err != nil {
+		return fmt.Errorf("failed to delete old namespaces: %v", err)
+	}
+
+	// 创建新的命名空间记录
+	for namespace, count := range namespaceCount {
+		nsRecord := &model.K8sWorkloadNamespace{
+			ConfigID:      configID,
+			Namespace:     namespace,
+			WorkloadCount: count,
+		}
+		if err := s.namespaceRepository.CreateOrUpdate(nsRecord); err != nil {
+			return fmt.Errorf("failed to create/update namespace %s: %v", namespace, err)
+		}
+	}
+
+	return nil
 }
 
 // getWorkloadsFromCluster 从K8s集群获取工作负载
@@ -264,6 +332,66 @@ func (s *k8sConfigService) getWorkloadsFromCluster(clientset *kubernetes.Clients
 		if d.Spec.Replicas != nil {
 			replicas = *d.Spec.Replicas
 		}
+
+		// 获取标签并序列化为JSON字符串
+		var labelsJSON *string
+		if d.Labels != nil && len(d.Labels) > 0 {
+			if labelsBytes, err := json.Marshal(d.Labels); err == nil {
+				labelsStr := string(labelsBytes)
+				labelsJSON = &labelsStr
+			}
+		}
+
+		// 获取选择器并序列化为JSON字符串
+		var selectorJSON *string
+		if d.Spec.Selector != nil && d.Spec.Selector.MatchLabels != nil && len(d.Spec.Selector.MatchLabels) > 0 {
+			if selectorBytes, err := json.Marshal(d.Spec.Selector.MatchLabels); err == nil {
+				selectorStr := string(selectorBytes)
+				selectorJSON = &selectorStr
+			}
+		}
+
+		// 获取容器镜像和资源配置
+		var imagesJSON *string
+		var cpuRequest, cpuLimit, memoryRequest, memoryLimit *string
+
+		if len(d.Spec.Template.Spec.Containers) > 0 {
+			// 收集所有容器镜像
+			var images []string
+			for _, container := range d.Spec.Template.Spec.Containers {
+				images = append(images, container.Image)
+			}
+			if len(images) > 0 {
+				if imagesBytes, err := json.Marshal(images); err == nil {
+					imagesStr := string(imagesBytes)
+					imagesJSON = &imagesStr
+				}
+			}
+
+			// 获取第一个容器的资源配置（通常主容器）
+			container := d.Spec.Template.Spec.Containers[0]
+			if container.Resources.Requests != nil {
+				if cpu := container.Resources.Requests.Cpu(); cpu != nil {
+					cpuReq := cpu.String()
+					cpuRequest = &cpuReq
+				}
+				if memory := container.Resources.Requests.Memory(); memory != nil {
+					memReq := memory.String()
+					memoryRequest = &memReq
+				}
+			}
+			if container.Resources.Limits != nil {
+				if cpu := container.Resources.Limits.Cpu(); cpu != nil {
+					cpuLim := cpu.String()
+					cpuLimit = &cpuLim
+				}
+				if memory := container.Resources.Limits.Memory(); memory != nil {
+					memLim := memory.String()
+					memoryLimit = &memLim
+				}
+			}
+		}
+
 		workload := model.K8sWorkload{
 			ConfigID:      configID,
 			Name:          d.Name,
@@ -272,6 +400,13 @@ func (s *k8sConfigService) getWorkloadsFromCluster(clientset *kubernetes.Clients
 			Replicas:      int(replicas),
 			ReadyReplicas: int(d.Status.ReadyReplicas),
 			Status:        getDeploymentStatus(d.Status),
+			Labels:        labelsJSON,
+			Selector:      selectorJSON,
+			Images:        imagesJSON,
+			CPURequest:    cpuRequest,
+			CPULimit:      cpuLimit,
+			MemoryRequest: memoryRequest,
+			MemoryLimit:   memoryLimit,
 		}
 		workloads = append(workloads, workload)
 	}
@@ -286,6 +421,66 @@ func (s *k8sConfigService) getWorkloadsFromCluster(clientset *kubernetes.Clients
 		if s.Spec.Replicas != nil {
 			replicas = *s.Spec.Replicas
 		}
+
+		// 获取标签并序列化为JSON字符串
+		var labelsJSON *string
+		if s.Labels != nil && len(s.Labels) > 0 {
+			if labelsBytes, err := json.Marshal(s.Labels); err == nil {
+				labelsStr := string(labelsBytes)
+				labelsJSON = &labelsStr
+			}
+		}
+
+		// 获取选择器并序列化为JSON字符串
+		var selectorJSON *string
+		if s.Spec.Selector != nil && s.Spec.Selector.MatchLabels != nil && len(s.Spec.Selector.MatchLabels) > 0 {
+			if selectorBytes, err := json.Marshal(s.Spec.Selector.MatchLabels); err == nil {
+				selectorStr := string(selectorBytes)
+				selectorJSON = &selectorStr
+			}
+		}
+
+		// 获取容器镜像和资源配置
+		var imagesJSON *string
+		var cpuRequest, cpuLimit, memoryRequest, memoryLimit *string
+
+		if len(s.Spec.Template.Spec.Containers) > 0 {
+			// 收集所有容器镜像
+			var images []string
+			for _, container := range s.Spec.Template.Spec.Containers {
+				images = append(images, container.Image)
+			}
+			if len(images) > 0 {
+				if imagesBytes, err := json.Marshal(images); err == nil {
+					imagesStr := string(imagesBytes)
+					imagesJSON = &imagesStr
+				}
+			}
+
+			// 获取第一个容器的资源配置（通常主容器）
+			container := s.Spec.Template.Spec.Containers[0]
+			if container.Resources.Requests != nil {
+				if cpu := container.Resources.Requests.Cpu(); cpu != nil {
+					cpuReq := cpu.String()
+					cpuRequest = &cpuReq
+				}
+				if memory := container.Resources.Requests.Memory(); memory != nil {
+					memReq := memory.String()
+					memoryRequest = &memReq
+				}
+			}
+			if container.Resources.Limits != nil {
+				if cpu := container.Resources.Limits.Cpu(); cpu != nil {
+					cpuLim := cpu.String()
+					cpuLimit = &cpuLim
+				}
+				if memory := container.Resources.Limits.Memory(); memory != nil {
+					memLim := memory.String()
+					memoryLimit = &memLim
+				}
+			}
+		}
+
 		workload := model.K8sWorkload{
 			ConfigID:      configID,
 			Name:          s.Name,
@@ -294,6 +489,13 @@ func (s *k8sConfigService) getWorkloadsFromCluster(clientset *kubernetes.Clients
 			Replicas:      int(replicas),
 			ReadyReplicas: int(s.Status.ReadyReplicas),
 			Status:        getStatefulSetStatus(s.Status),
+			Labels:        labelsJSON,
+			Selector:      selectorJSON,
+			Images:        imagesJSON,
+			CPURequest:    cpuRequest,
+			CPULimit:      cpuLimit,
+			MemoryRequest: memoryRequest,
+			MemoryLimit:   memoryLimit,
 		}
 		workloads = append(workloads, workload)
 	}
@@ -304,6 +506,65 @@ func (s *k8sConfigService) getWorkloadsFromCluster(clientset *kubernetes.Clients
 		return nil, fmt.Errorf("failed to list daemonsets: %v", err)
 	}
 	for _, d := range daemonsets.Items {
+		// 获取标签并序列化为JSON字符串
+		var labelsJSON *string
+		if d.Labels != nil && len(d.Labels) > 0 {
+			if labelsBytes, err := json.Marshal(d.Labels); err == nil {
+				labelsStr := string(labelsBytes)
+				labelsJSON = &labelsStr
+			}
+		}
+
+		// 获取选择器并序列化为JSON字符串
+		var selectorJSON *string
+		if d.Spec.Selector != nil && d.Spec.Selector.MatchLabels != nil && len(d.Spec.Selector.MatchLabels) > 0 {
+			if selectorBytes, err := json.Marshal(d.Spec.Selector.MatchLabels); err == nil {
+				selectorStr := string(selectorBytes)
+				selectorJSON = &selectorStr
+			}
+		}
+
+		// 获取容器镜像和资源配置
+		var imagesJSON *string
+		var cpuRequest, cpuLimit, memoryRequest, memoryLimit *string
+
+		if len(d.Spec.Template.Spec.Containers) > 0 {
+			// 收集所有容器镜像
+			var images []string
+			for _, container := range d.Spec.Template.Spec.Containers {
+				images = append(images, container.Image)
+			}
+			if len(images) > 0 {
+				if imagesBytes, err := json.Marshal(images); err == nil {
+					imagesStr := string(imagesBytes)
+					imagesJSON = &imagesStr
+				}
+			}
+
+			// 获取第一个容器的资源配置（通常主容器）
+			container := d.Spec.Template.Spec.Containers[0]
+			if container.Resources.Requests != nil {
+				if cpu := container.Resources.Requests.Cpu(); cpu != nil {
+					cpuReq := cpu.String()
+					cpuRequest = &cpuReq
+				}
+				if memory := container.Resources.Requests.Memory(); memory != nil {
+					memReq := memory.String()
+					memoryRequest = &memReq
+				}
+			}
+			if container.Resources.Limits != nil {
+				if cpu := container.Resources.Limits.Cpu(); cpu != nil {
+					cpuLim := cpu.String()
+					cpuLimit = &cpuLim
+				}
+				if memory := container.Resources.Limits.Memory(); memory != nil {
+					memLim := memory.String()
+					memoryLimit = &memLim
+				}
+			}
+		}
+
 		workload := model.K8sWorkload{
 			ConfigID:      configID,
 			Name:          d.Name,
@@ -312,6 +573,13 @@ func (s *k8sConfigService) getWorkloadsFromCluster(clientset *kubernetes.Clients
 			Replicas:      int(d.Status.DesiredNumberScheduled),
 			ReadyReplicas: int(d.Status.NumberReady),
 			Status:        getDaemonSetStatus(d.Status),
+			Labels:        labelsJSON,
+			Selector:      selectorJSON,
+			Images:        imagesJSON,
+			CPURequest:    cpuRequest,
+			CPULimit:      cpuLimit,
+			MemoryRequest: memoryRequest,
+			MemoryLimit:   memoryLimit,
 		}
 		workloads = append(workloads, workload)
 	}

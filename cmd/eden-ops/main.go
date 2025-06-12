@@ -177,6 +177,7 @@ func main() {
 	serverConfigRepo := repository.NewServerConfigRepository(db)
 	k8sConfigRepo := repository.NewK8sConfigRepository(db)
 	k8sWorkloadRepo := repository.NewK8sWorkloadRepository(db)
+	k8sWorkloadNamespaceRepo := repository.NewK8sWorkloadNamespaceRepository(db)
 
 	// 初始化服务
 	userService := service.NewUserService(userRepo, jwtAuth)
@@ -187,7 +188,7 @@ func main() {
 	databaseConfigService := service.NewDatabaseConfigService(databaseConfigRepo)
 	serverConfigService := service.NewServerConfigService(serverConfigRepo)
 	k8sWorkloadService := service.NewK8sWorkloadService(k8sWorkloadRepo)
-	k8sConfigService := service.NewK8sConfigService(k8sConfigRepo, k8sWorkloadService)
+	k8sConfigService := service.NewK8sConfigService(k8sConfigRepo, k8sWorkloadService, k8sWorkloadRepo, k8sWorkloadNamespaceRepo)
 
 	// 创建日志记录器
 	logrusLogger := logrus.New()
@@ -214,6 +215,8 @@ func main() {
 	databaseConfigHandler := handler.NewDatabaseConfigHandler(databaseConfigService)
 	serverConfigHandler := handler.NewServerConfigHandler(serverConfigService, logrusLogger)
 	k8sConfigHandler := handler.NewK8sConfigHandler(k8sConfigService)
+	k8sWorkloadHandler := handler.NewK8sWorkloadHandler(k8sWorkloadService)
+	k8sWorkloadNamespaceHandler := handler.NewK8sWorkloadNamespaceHandler(k8sWorkloadNamespaceRepo)
 
 	// 初始化路由
 	logger.Info("初始化路由...")
@@ -224,6 +227,8 @@ func main() {
 		databaseConfigHandler,
 		serverConfigHandler,
 		k8sConfigHandler,
+		k8sWorkloadHandler,
+		k8sWorkloadNamespaceHandler,
 		userHandler,
 		roleHandler,
 		menuHandler,

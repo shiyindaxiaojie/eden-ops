@@ -17,6 +17,8 @@ func NewRouter(
 	databaseConfigHandler *handler.DatabaseConfigHandler,
 	serverConfigHandler *handler.ServerConfigHandler,
 	k8sConfigHandler *handler.K8sConfigHandler,
+	k8sWorkloadHandler *handler.K8sWorkloadHandler,
+	k8sWorkloadNamespaceHandler *handler.K8sWorkloadNamespaceHandler,
 	userHandler *handler.UserHandler,
 	roleHandler *handler.RoleHandler,
 	menuHandler *handler.MenuHandler,
@@ -104,11 +106,19 @@ func NewRouter(
 
 		// Kubernetes配置管理
 		auth.GET("/k8s-configs", k8sConfigHandler.List)
+		auth.GET("/k8s-configs/with-workload-count", k8sConfigHandler.ListWithWorkloadCount)
 		auth.GET("/k8s-configs/:id", k8sConfigHandler.Get)
 		auth.POST("/k8s-configs", k8sConfigHandler.Create)
 		auth.PUT("/k8s-configs/:id", k8sConfigHandler.Update)
 		auth.DELETE("/k8s-configs/:id", k8sConfigHandler.Delete)
 		auth.POST("/k8s-configs/test", k8sConfigHandler.TestConnection)
+
+		// Kubernetes工作负载管理
+		auth.GET("/k8s-workloads", k8sWorkloadHandler.List)
+		auth.GET("/k8s-workloads/:id", k8sWorkloadHandler.Get)
+
+		// Kubernetes命名空间管理
+		auth.GET("/k8s-namespaces", k8sWorkloadNamespaceHandler.GetNamespacesByConfigID)
 
 		// 基础设施路由组
 		infrastructure := auth.Group("/infrastructure")
@@ -142,7 +152,7 @@ func NewRouter(
 			infrastructure.DELETE("/server/:id", serverConfigHandler.Delete)
 
 			// Kubernetes
-			infrastructure.GET("/kubernetes", k8sConfigHandler.List)
+			infrastructure.GET("/kubernetes", k8sConfigHandler.ListWithWorkloadCount)
 			infrastructure.GET("/kubernetes/:id", k8sConfigHandler.Get)
 			infrastructure.POST("/kubernetes", k8sConfigHandler.Create)
 			infrastructure.PUT("/kubernetes/:id", k8sConfigHandler.Update)

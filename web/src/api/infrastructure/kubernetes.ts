@@ -58,4 +58,20 @@ export function getKubernetesWorkloads(id: number) {
     url: `/api/infrastructure/kubernetes/${id}/workloads`,
     method: 'get'
   })
-} 
+}
+
+// 工作负载相关API
+export function getWorkloadList(params: any) {
+  return request({
+    url: '/api/v1/k8s-workloads',
+    method: 'get',
+    params
+  })
+}
+
+export function getWorkloadDetail(id: number) {
+  return request({
+    url: `/api/v1/k8s-workloads/${id}`,
+    method: 'get'
+  })
+}
