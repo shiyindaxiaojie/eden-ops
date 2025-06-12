@@ -1,19 +1,19 @@
 <template>
   <div class="app-container">
-    <el-card class="box-card">
+    <el-card>
       <template #header>
         <div class="card-header">
           <div class="header-left">
-            <h2 class="title">工作负载</h2>
-            <div class="subtitle">集群：{{ clusterName }}</div>
+            <h3 class="title">Pod 管理</h3>
+            <p class="subtitle">集群：{{ clusterName }}</p>
           </div>
           <el-button @click="goBack">返回集群列表</el-button>
         </div>
       </template>
 
       <el-form :model="queryParams" ref="queryForm" :inline="true" class="search-form">
-        <el-form-item label="名称" prop="name">
-          <el-input v-model="queryParams.name" placeholder="请输入工作负载名称" clearable />
+        <el-form-item label="Pod 名称" prop="name">
+          <el-input v-model="queryParams.name" placeholder="请输入Pod名称" clearable />
         </el-form-item>
         <el-form-item label="命名空间" prop="namespace">
           <el-select v-model="queryParams.namespace" placeholder="请选择命名空间" clearable style="min-width: 200px;">
@@ -25,15 +25,8 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="类型" prop="workloadType">
-          <el-select v-model="queryParams.workloadType" placeholder="请选择类型" clearable style="min-width: 150px;">
-            <el-option label="全部" value="" />
-            <el-option label="Deployment" value="Deployment" />
-            <el-option label="StatefulSet" value="StatefulSet" />
-            <el-option label="DaemonSet" value="DaemonSet" />
-            <el-option label="Job" value="Job" />
-            <el-option label="CronJob" value="CronJob" />
-          </el-select>
+        <el-form-item label="工作负载" prop="workloadName">
+          <el-input v-model="queryParams.workloadName" placeholder="请输入工作负载名称" clearable />
         </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-select v-model="queryParams.status" placeholder="请选择状态" clearable style="min-width: 120px;">
@@ -41,10 +34,9 @@
             <el-option label="运行中" value="Running" />
             <el-option label="等待中" value="Pending" />
             <el-option label="失败" value="Failed" />
-            <el-option label="错误" value="Error" />
-            <el-option label="进行中" value="Progressing" />
-            <el-option label="可用" value="Available" />
-            <el-option label="完成" value="Complete" />
+            <el-option label="成功" value="Succeeded" />
+            <el-option label="镜像拉取失败" value="ImagePullBackOff" />
+            <el-option label="崩溃循环" value="CrashLoopBackOff" />
           </el-select>
         </el-form-item>
         <el-form-item label="创建时间" prop="dateRange">
@@ -56,7 +48,7 @@
             end-placeholder="结束时间"
             format="YYYY-MM-DD HH:mm:ss"
             value-format="YYYY-MM-DD HH:mm:ss"
-            style="min-width: 350px;"
+            style="min-width: 300px;"
             @change="handleDateChange"
           />
         </el-form-item>
@@ -66,19 +58,20 @@
         </el-form-item>
       </el-form>
 
-      <el-table :data="workloadList" v-loading="loading" style="width: 100%; min-width: 1400px;" @sort-change="handleSortChange">
+      <el-table :data="podList" v-loading="loading" style="width: 100%; min-width: 1600px;" @sort-change="handleSortChange">
         <el-table-column type="index" label="序号" width="60" />
-        <el-table-column prop="name" label="工作负载名称" width="180" show-overflow-tooltip sortable="custom" />
-        <el-table-column prop="namespace" label="命名空间" width="120" show-overflow-tooltip sortable="custom" />
-        <el-table-column prop="kind" label="类型" width="120" />
-        <el-table-column label="Pod" width="120" align="center" sortable="custom" sort-by="replicas">
+        <el-table-column prop="name" label="Pod 名称" width="250" show-overflow-tooltip sortable="custom" />
+        <el-table-column prop="namespace" label="命名空间" width="120" show-overflow-tooltip />
+        <el-table-column prop="workload_name" label="工作负载" width="150" show-overflow-tooltip sortable="custom" />
+        <el-table-column prop="workload_kind" label="类型" width="100" />
+        <el-table-column prop="status" label="状态" width="120" align="center" sortable="custom">
           <template #default="{ row }">
-            <span v-if="row.pod_status">{{ row.pod_status }}</span>
-            <span v-else-if="row.replicas !== undefined">{{ row.ready_replicas || 0 }}/{{ row.replicas }}</span>
-            <span v-else>-</span>
+            <el-tag :type="getStatusType(row.status)" size="small">
+              {{ getStatusText(row.status) }}
+            </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="Request/Limits" width="180" sortable="custom" sort-by="cpu_request">
+        <el-table-column label="Request/Limits" width="150">
           <template #default="{ row }">
             <div style="font-size: 12px; line-height: 1.4;">
               <div v-if="row.cpu_request_limits">
@@ -91,27 +84,11 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center" sortable="custom">
-          <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)" size="small">
-              {{ getStatusText(row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-                <el-table-column prop="images" label="镜像" width="200" show-overflow-tooltip>
-          <template #default="{ row }">
-            <div v-if="row.images && row.images.length > 0">
-              <div v-for="(image, index) in row.images.slice(0, 2)" :key="index" style="font-size: 12px;">
-                {{ image }}
-              </div>
-              <div v-if="row.images.length > 2" style="font-size: 11px; color: #999;">
-                +{{ row.images.length - 2 }} 更多...
-              </div>
-            </div>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="160" align="center" sortable="custom">
+                <el-table-column prop="instance_ip" label="实例IP" width="120" />
+        <el-table-column prop="restart_count" label="重启次数" width="110" sortable="custom" />
+        <el-table-column prop="running_time" label="运行时间" width="120" />
+        <el-table-column prop="node_name" label="节点" width="150" show-overflow-tooltip />
+        <el-table-column prop="created_at" label="创建时间" width="160" sortable="custom">
           <template #default="{ row }">
             {{ formatTime(row.created_at) }}
           </template>
@@ -141,16 +118,15 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getWorkloadList } from '@/api/infrastructure/kubernetes'
+import { getPodList } from '@/api/infrastructure/kubernetes'
 
 const route = useRoute()
 const router = useRouter()
 
 const loading = ref(false)
-const workloadList = ref([])
+const podList = ref([])
 const total = ref(0)
 const namespaceOptions = ref([])
-const workloadTypeOptions = ref(['Deployment', 'StatefulSet', 'DaemonSet', 'Job', 'CronJob'])
 const clusterName = ref('')
 const configId = ref('')
 const dateRange = ref([])
@@ -160,7 +136,7 @@ const queryParams = ref({
   pageSize: 10,
   name: '',
   namespace: '',
-  workloadType: '',
+  workloadName: '',
   status: '',
   sortBy: '',
   sortOrder: 'asc',
@@ -172,11 +148,11 @@ const queryParams = ref({
 const getList = async () => {
   loading.value = true
   try {
-    const res = await getWorkloadList(queryParams.value)
-    workloadList.value = res.data.list
+    const res = await getPodList(queryParams.value)
+    podList.value = res.data.list
     total.value = res.data.total
   } catch (error) {
-    console.error('Failed to fetch workloads:', error)
+    console.error('Failed to fetch pods:', error)
   } finally {
     loading.value = false
   }
@@ -184,7 +160,7 @@ const getList = async () => {
 
 const getNamespaces = async () => {
   if (!configId.value) return
-
+  
   try {
     const response = await fetch(`/api/v1/k8s-namespaces?configId=${configId.value}`, {
       headers: {
@@ -212,7 +188,7 @@ const resetQuery = () => {
     pageSize: 10,
     name: '',
     namespace: '',
-    workloadType: '',
+    workloadName: '',
     status: '',
     sortBy: '',
     sortOrder: 'asc',
@@ -252,8 +228,7 @@ const handlePageChange = (page: number) => {
 }
 
 const handleViewDetail = (row: any) => {
-  // 这里可以打开详情弹窗或跳转到详情页面
-  ElMessage.info('工作负载详情功能开发中...')
+  ElMessage.info('Pod详情功能开发中...')
 }
 
 const goBack = () => {
@@ -263,14 +238,13 @@ const goBack = () => {
 const getStatusType = (status: string) => {
   switch (status) {
     case 'Running':
-    case 'Available':
-    case 'Complete':
+    case 'Succeeded':
       return 'success'
     case 'Pending':
-    case 'Progressing':
       return 'warning'
     case 'Failed':
-    case 'Error':
+    case 'ImagePullBackOff':
+    case 'CrashLoopBackOff':
       return 'danger'
     default:
       return 'info'
@@ -285,14 +259,12 @@ const getStatusText = (status: string) => {
       return '等待中'
     case 'Failed':
       return '失败'
-    case 'Error':
-      return '错误'
-    case 'Progressing':
-      return '进行中'
-    case 'Available':
-      return '可用'
-    case 'Complete':
-      return '完成'
+    case 'Succeeded':
+      return '成功'
+    case 'ImagePullBackOff':
+      return '镜像拉取失败'
+    case 'CrashLoopBackOff':
+      return '崩溃循环'
     default:
       return status || '-'
   }
@@ -315,7 +287,7 @@ onMounted(() => {
     return
   }
 
-  // 获取命名空间选项和工作负载列表
+  // 获取命名空间选项和Pod列表
   getNamespaces()
   getList()
 })

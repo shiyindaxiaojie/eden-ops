@@ -12,7 +12,7 @@ type K8sWorkloadRepository interface {
 	Delete(id int64) error
 	Get(id int64) (*model.K8sWorkload, error)
 	List(configID int64, page, pageSize int) (int64, []model.K8sWorkload, error)
-	ListWithFilter(page, pageSize int, name, namespace, workloadType string, configId *int64) (int64, []model.K8sWorkload, error)
+	ListWithFilter(page, pageSize int, name, namespace, workloadType, status, sortBy, sortOrder string, startTime, endTime *string, configId *int64) (int64, []model.K8sWorkload, error)
 	ListByConfigID(configID int64) ([]model.K8sWorkload, error)
 	DeleteByConfigID(configID int64) error
 	BatchCreate(workloads []model.K8sWorkload) error
@@ -75,7 +75,7 @@ func (r *k8sWorkloadRepository) List(configID int64, page, pageSize int) (int64,
 }
 
 // ListWithFilter 获取工作负载列表（支持筛选）
-func (r *k8sWorkloadRepository) ListWithFilter(page, pageSize int, name, namespace, workloadType string, configId *int64) (int64, []model.K8sWorkload, error) {
+func (r *k8sWorkloadRepository) ListWithFilter(page, pageSize int, name, namespace, workloadType, status, sortBy, sortOrder string, startTime, endTime *string, configId *int64) (int64, []model.K8sWorkload, error) {
 	var workloads []model.K8sWorkload
 	var total int64
 
@@ -94,17 +94,92 @@ func (r *k8sWorkloadRepository) ListWithFilter(page, pageSize int, name, namespa
 	if workloadType != "" {
 		query = query.Where("kind = ?", workloadType)
 	}
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+
+	// 时间范围筛选
+	if startTime != nil && *startTime != "" {
+		query = query.Where("created_at >= ?", *startTime)
+	}
+	if endTime != nil && *endTime != "" {
+		query = query.Where("created_at <= ?", *endTime)
+	}
 
 	if err := query.Count(&total).Error; err != nil {
 		return 0, nil, err
 	}
 
+	// 构建排序条件
+	orderClause := r.buildOrderClause(sortBy, sortOrder)
+
 	offset := (page - 1) * pageSize
-	if err := query.Offset(offset).Limit(pageSize).Order("created_at DESC").Find(&workloads).Error; err != nil {
+	if err := query.Offset(offset).Limit(pageSize).Order(orderClause).Find(&workloads).Error; err != nil {
 		return 0, nil, err
 	}
 
 	return total, workloads, nil
+}
+
+// buildOrderClause 构建排序条件
+func (r *k8sWorkloadRepository) buildOrderClause(sortBy, sortOrder string) string {
+	// 默认排序：状态优先级 + 创建时间倒序
+	defaultOrder := `
+		CASE status
+			WHEN 'Pending' THEN 1
+			WHEN 'Failed' THEN 2
+			WHEN 'Error' THEN 3
+			WHEN 'Progressing' THEN 4
+			WHEN 'Running' THEN 5
+			WHEN 'Available' THEN 6
+			WHEN 'Complete' THEN 7
+			ELSE 8
+		END ASC, created_at DESC`
+
+	if sortBy == "" {
+		return defaultOrder
+	}
+
+	// 验证排序方向
+	if sortOrder != "asc" && sortOrder != "desc" {
+		sortOrder = "asc"
+	}
+
+	// 根据排序字段构建排序条件
+	switch sortBy {
+	case "name":
+		return "name " + sortOrder + ", " + defaultOrder
+	case "namespace":
+		return "namespace " + sortOrder + ", " + defaultOrder
+	case "kind":
+		return "kind " + sortOrder + ", " + defaultOrder
+	case "status":
+		if sortOrder == "asc" {
+			return defaultOrder
+		} else {
+			return `
+				CASE status
+					WHEN 'Complete' THEN 1
+					WHEN 'Available' THEN 2
+					WHEN 'Running' THEN 3
+					WHEN 'Progressing' THEN 4
+					WHEN 'Error' THEN 5
+					WHEN 'Failed' THEN 6
+					WHEN 'Pending' THEN 7
+					ELSE 8
+				END ASC, created_at DESC`
+		}
+	case "replicas":
+		return "replicas " + sortOrder + ", " + defaultOrder
+	case "ready_replicas":
+		return "ready_replicas " + sortOrder + ", " + defaultOrder
+	case "created_at":
+		return "created_at " + sortOrder + ", name ASC"
+	case "updated_at":
+		return "updated_at " + sortOrder + ", name ASC"
+	default:
+		return defaultOrder
+	}
 }
 
 // ListByConfigID 根据配置ID获取所有工作负载

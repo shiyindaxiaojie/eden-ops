@@ -12,7 +12,7 @@ type K8sWorkloadService interface {
 	Delete(id int64) error
 	Get(id int64) (*model.K8sWorkload, error)
 	List(configID int64, page, pageSize int) ([]model.K8sWorkload, int64, error)
-	ListWithFilter(page, pageSize int, name, namespace, workloadType string, configId *int64) ([]*model.K8sWorkloadResponse, int64, error)
+	ListWithFilter(page, pageSize int, name, namespace, workloadType, status, sortBy, sortOrder string, startTime, endTime *string, configId *int64) ([]*model.K8sWorkloadResponse, int64, error)
 	ListByConfigID(configID int64) ([]model.K8sWorkload, error)
 	DeleteByConfigID(configID int64) error
 	SyncWorkloads(configID int64, workloads []model.K8sWorkload) error
@@ -60,8 +60,8 @@ func (s *k8sWorkloadService) List(configID int64, page, pageSize int) ([]model.K
 }
 
 // ListWithFilter 获取工作负载列表（支持筛选）
-func (s *k8sWorkloadService) ListWithFilter(page, pageSize int, name, namespace, workloadType string, configId *int64) ([]*model.K8sWorkloadResponse, int64, error) {
-	total, workloads, err := s.repo.ListWithFilter(page, pageSize, name, namespace, workloadType, configId)
+func (s *k8sWorkloadService) ListWithFilter(page, pageSize int, name, namespace, workloadType, status, sortBy, sortOrder string, startTime, endTime *string, configId *int64) ([]*model.K8sWorkloadResponse, int64, error) {
+	total, workloads, err := s.repo.ListWithFilter(page, pageSize, name, namespace, workloadType, status, sortBy, sortOrder, startTime, endTime, configId)
 	if err != nil {
 		return nil, 0, err
 	}

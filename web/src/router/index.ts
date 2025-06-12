@@ -59,6 +59,13 @@ export const constantRoutes: Array<RouteRecordRaw> = [
         hidden: true
       },
       {
+        path: 'kubernetes/pods',
+        component: () => import('@/views/infrastructure/kubernetes/pods.vue'),
+        name: 'KubernetesPods',
+        meta: { title: 'Kubernetes Pod', activeMenu: '/infrastructure/kubernetes' },
+        hidden: true
+      },
+      {
         path: 'cloud-provider',
         name: 'CloudProvider',
         component: () => import('@/views/infrastructure/cloud-provider/index.vue'),

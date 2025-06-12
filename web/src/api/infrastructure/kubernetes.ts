@@ -75,3 +75,19 @@ export function getWorkloadDetail(id: number) {
     method: 'get'
   })
 }
+
+// Pod相关API
+export function getPodList(params: any) {
+  return request({
+    url: '/api/v1/k8s-pods',
+    method: 'get',
+    params
+  })
+}
+
+export function getPodDetail(id: number) {
+  return request({
+    url: `/api/v1/k8s-pods/${id}`,
+    method: 'get'
+  })
+}

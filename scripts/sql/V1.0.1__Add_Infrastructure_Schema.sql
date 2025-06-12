@@ -234,8 +234,41 @@ VALUES
 
 -- Add CRUD permissions for Server
 INSERT INTO `sys_menu` (`parent_id`, `name`, `perms`, `type`, `icon`, `sort_order`, `status`)
-VALUES 
+VALUES
 (@server_menu_id, '服务器列表', 'infrastructure:server:list', 2, NULL, 1, 1),
 (@server_menu_id, '服务器创建', 'infrastructure:server:create', 2, NULL, 2, 1),
 (@server_menu_id, '服务器更新', 'infrastructure:server:update', 2, NULL, 3, 1),
-(@server_menu_id, '服务器删除', 'infrastructure:server:delete', 2, NULL, 4, 1); 
+(@server_menu_id, '服务器删除', 'infrastructure:server:delete', 2, NULL, 4, 1);
+
+-- 创建K8s Pod表
+CREATE TABLE IF NOT EXISTS `infra_k8s_pod` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'Pod ID',
+  `config_id` bigint NOT NULL COMMENT 'K8s配置ID',
+  `workload_id` bigint DEFAULT NULL COMMENT '工作负载ID',
+  `name` varchar(255) NOT NULL COMMENT 'Pod名称',
+  `namespace` varchar(100) NOT NULL COMMENT '命名空间',
+  `workload_name` varchar(255) DEFAULT NULL COMMENT '工作负载名称',
+  `workload_kind` varchar(50) DEFAULT NULL COMMENT '工作负载类型',
+  `status` varchar(50) NOT NULL COMMENT 'Pod状态',
+  `phase` varchar(50) DEFAULT NULL COMMENT 'Pod阶段',
+  `node_name` varchar(255) DEFAULT NULL COMMENT '节点名称',
+  `pod_ip` varchar(45) DEFAULT NULL COMMENT 'Pod IP',
+  `host_ip` varchar(45) DEFAULT NULL COMMENT '主机IP',
+  `instance_ip` varchar(45) DEFAULT NULL COMMENT '实例IP',
+  `cpu_request` varchar(20) DEFAULT NULL COMMENT 'CPU请求',
+  `cpu_limit` varchar(20) DEFAULT NULL COMMENT 'CPU限制',
+  `memory_request` varchar(20) DEFAULT NULL COMMENT '内存请求',
+  `memory_limit` varchar(20) DEFAULT NULL COMMENT '内存限制',
+  `restart_count` int DEFAULT 0 COMMENT '重启次数',
+  `start_time` datetime DEFAULT NULL COMMENT '启动时间',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted_at` datetime DEFAULT NULL COMMENT '删除时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_config_id` (`config_id`),
+  KEY `idx_namespace` (`namespace`),
+  KEY `idx_status` (`status`),
+  KEY `idx_workload_name` (`workload_name`),
+  KEY `idx_deleted_at` (`deleted_at`),
+  CONSTRAINT `fk_k8s_pod_config` FOREIGN KEY (`config_id`) REFERENCES `infra_k8s_config` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='K8s Pod表';

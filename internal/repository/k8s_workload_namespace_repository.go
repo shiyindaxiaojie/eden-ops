@@ -2,6 +2,7 @@ package repository
 
 import (
 	"eden-ops/internal/model"
+	"errors"
 
 	"gorm.io/gorm"
 )
@@ -36,7 +37,7 @@ func (r *k8sWorkloadNamespaceRepository) CreateOrUpdate(namespace *model.K8sWork
 	var existing model.K8sWorkloadNamespace
 	err := r.db.Where("config_id = ? AND namespace = ?", namespace.ConfigID, namespace.Namespace).First(&existing).Error
 	
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// 创建新记录
 		return r.db.Create(namespace).Error
 	} else if err != nil {

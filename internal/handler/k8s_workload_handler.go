@@ -27,6 +27,11 @@ func (h *K8sWorkloadHandler) List(c *gin.Context) {
 	name := c.Query("name")
 	namespace := c.Query("namespace")
 	workloadType := c.Query("workloadType")
+	status := c.Query("status")
+	sortBy := c.Query("sortBy")
+	sortOrder := c.DefaultQuery("sortOrder", "asc")
+	startTimeStr := c.Query("startTime")
+	endTimeStr := c.Query("endTime")
 
 	var configId *int64
 	if configIdStr := c.Query("configId"); configIdStr != "" {
@@ -35,7 +40,16 @@ func (h *K8sWorkloadHandler) List(c *gin.Context) {
 		}
 	}
 
-	workloads, total, err := h.workloadService.ListWithFilter(page, pageSize, name, namespace, workloadType, configId)
+	// 处理时间参数
+	var startTime, endTime *string
+	if startTimeStr != "" {
+		startTime = &startTimeStr
+	}
+	if endTimeStr != "" {
+		endTime = &endTimeStr
+	}
+
+	workloads, total, err := h.workloadService.ListWithFilter(page, pageSize, name, namespace, workloadType, status, sortBy, sortOrder, startTime, endTime, configId)
 	if err != nil {
 		response.Failed(c, err)
 		return

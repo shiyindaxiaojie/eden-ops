@@ -6,6 +6,7 @@ import (
 	"eden-ops/internal/repository"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -38,15 +39,17 @@ type k8sConfigService struct {
 	workloadService     K8sWorkloadService
 	workloadRepo        repository.K8sWorkloadRepository
 	namespaceRepository repository.K8sWorkloadNamespaceRepository
+	podService          K8sPodService
 }
 
 // NewK8sConfigService 创建Kubernetes配置服务
-func NewK8sConfigService(repo repository.K8sConfigRepository, workloadService K8sWorkloadService, workloadRepo repository.K8sWorkloadRepository, namespaceRepo repository.K8sWorkloadNamespaceRepository) K8sConfigService {
+func NewK8sConfigService(repo repository.K8sConfigRepository, workloadService K8sWorkloadService, workloadRepo repository.K8sWorkloadRepository, namespaceRepo repository.K8sWorkloadNamespaceRepository, podService K8sPodService) K8sConfigService {
 	return &k8sConfigService{
 		repo:                repo,
 		workloadService:     workloadService,
 		workloadRepo:        workloadRepo,
 		namespaceRepository: namespaceRepo,
+		podService:          podService,
 	}
 }
 
@@ -261,6 +264,17 @@ func (s *k8sConfigService) SyncCluster(id int64) error {
 		return fmt.Errorf("failed to sync workloads: %v", err)
 	}
 
+	// 获取Pod信息
+	pods, err := s.getPods(clientset, id)
+	if err != nil {
+		return fmt.Errorf("failed to get pods: %v", err)
+	}
+
+	// 同步Pod到数据库
+	if err := s.podService.SyncPods(id, pods); err != nil {
+		return fmt.Errorf("failed to sync pods: %v", err)
+	}
+
 	// 同步命名空间信息
 	if err := s.syncNamespaces(id, workloads); err != nil {
 		return fmt.Errorf("failed to sync namespaces: %v", err)
@@ -407,6 +421,8 @@ func (s *k8sConfigService) getWorkloadsFromCluster(clientset *kubernetes.Clients
 			CPULimit:      cpuLimit,
 			MemoryRequest: memoryRequest,
 			MemoryLimit:   memoryLimit,
+			CreatedAt:     d.CreationTimestamp.Time,
+			UpdatedAt:     time.Now(),
 		}
 		workloads = append(workloads, workload)
 	}
@@ -496,6 +512,8 @@ func (s *k8sConfigService) getWorkloadsFromCluster(clientset *kubernetes.Clients
 			CPULimit:      cpuLimit,
 			MemoryRequest: memoryRequest,
 			MemoryLimit:   memoryLimit,
+			CreatedAt:     s.CreationTimestamp.Time,
+			UpdatedAt:     time.Now(),
 		}
 		workloads = append(workloads, workload)
 	}
@@ -580,11 +598,152 @@ func (s *k8sConfigService) getWorkloadsFromCluster(clientset *kubernetes.Clients
 			CPULimit:      cpuLimit,
 			MemoryRequest: memoryRequest,
 			MemoryLimit:   memoryLimit,
+			CreatedAt:     d.CreationTimestamp.Time,
+			UpdatedAt:     time.Now(),
 		}
 		workloads = append(workloads, workload)
 	}
 
 	return workloads, nil
+}
+
+// getPods 获取Pod信息
+func (s *k8sConfigService) getPods(clientset *kubernetes.Clientset, configID int64) ([]model.K8sPod, error) {
+	ctx := context.Background()
+	var pods []model.K8sPod
+
+	// 获取所有Pod
+	podList, err := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list pods: %v", err)
+	}
+
+	for _, p := range podList.Items {
+		// 获取Pod的所有者引用，确定工作负载信息
+		var workloadName, workloadKind string
+		if len(p.OwnerReferences) > 0 {
+			// 通常Pod的直接所有者是ReplicaSet，需要找到最终的工作负载
+			for _, owner := range p.OwnerReferences {
+				if owner.Kind == "ReplicaSet" {
+					// 从ReplicaSet名称推断Deployment名称
+					rsName := owner.Name
+					if idx := strings.LastIndex(rsName, "-"); idx > 0 {
+						workloadName = rsName[:idx]
+						workloadKind = "Deployment"
+					}
+				} else if owner.Kind == "StatefulSet" || owner.Kind == "DaemonSet" {
+					workloadName = owner.Name
+					workloadKind = owner.Kind
+				}
+			}
+		}
+
+		// 计算重启次数（所有容器重启次数之和）
+		var restartCount int
+		for _, containerStatus := range p.Status.ContainerStatuses {
+			restartCount += int(containerStatus.RestartCount)
+		}
+
+		// 获取容器资源配置（第一个容器）
+		var cpuRequest, cpuLimit, memoryRequest, memoryLimit *string
+		if len(p.Spec.Containers) > 0 {
+			container := p.Spec.Containers[0]
+			if container.Resources.Requests != nil {
+				if cpu := container.Resources.Requests.Cpu(); cpu != nil {
+					cpuReq := cpu.String()
+					cpuRequest = &cpuReq
+				}
+				if memory := container.Resources.Requests.Memory(); memory != nil {
+					memReq := memory.String()
+					memoryRequest = &memReq
+				}
+			}
+			if container.Resources.Limits != nil {
+				if cpu := container.Resources.Limits.Cpu(); cpu != nil {
+					cpuLim := cpu.String()
+					cpuLimit = &cpuLim
+				}
+				if memory := container.Resources.Limits.Memory(); memory != nil {
+					memLim := memory.String()
+					memoryLimit = &memLim
+				}
+			}
+		}
+
+		// 获取启动时间
+		var startTime *time.Time
+		if p.Status.StartTime != nil {
+			startTime = &p.Status.StartTime.Time
+		}
+
+		// 实例IP通常就是Pod IP，如果没有则使用Host IP
+		instanceIP := p.Status.PodIP
+		if instanceIP == "" {
+			instanceIP = p.Status.HostIP
+		}
+
+		pod := model.K8sPod{
+			ConfigID:      configID,
+			Name:          p.Name,
+			Namespace:     p.Namespace,
+			WorkloadName:  workloadName,
+			WorkloadKind:  workloadKind,
+			Status:        getPodStatus(p.Status),
+			Phase:         string(p.Status.Phase),
+			NodeName:      p.Spec.NodeName,
+			PodIP:         p.Status.PodIP,
+			HostIP:        p.Status.HostIP,
+			InstanceIP:    instanceIP,
+			CPURequest:    cpuRequest,
+			CPULimit:      cpuLimit,
+			MemoryRequest: memoryRequest,
+			MemoryLimit:   memoryLimit,
+			RestartCount:  restartCount,
+			StartTime:     startTime,
+			CreatedAt:     p.CreationTimestamp.Time,
+			UpdatedAt:     time.Now(),
+		}
+		pods = append(pods, pod)
+	}
+
+	return pods, nil
+}
+
+// getPodStatus 获取Pod状态
+func getPodStatus(status corev1.PodStatus) string {
+	// 检查容器状态
+	for _, containerStatus := range status.ContainerStatuses {
+		if containerStatus.State.Waiting != nil {
+			reason := containerStatus.State.Waiting.Reason
+			if reason == "ImagePullBackOff" || reason == "ErrImagePull" {
+				return "ImagePullBackOff"
+			}
+			if reason == "CrashLoopBackOff" {
+				return "CrashLoopBackOff"
+			}
+			return "Pending"
+		}
+		if containerStatus.State.Terminated != nil {
+			if containerStatus.State.Terminated.ExitCode == 0 {
+				return "Succeeded"
+			}
+			return "Failed"
+		}
+	}
+
+	// 根据Pod阶段返回状态
+	switch status.Phase {
+	case corev1.PodRunning:
+		return "Running"
+	case corev1.PodPending:
+		return "Pending"
+	case corev1.PodSucceeded:
+		return "Succeeded"
+	case corev1.PodFailed:
+		return "Failed"
+	default:
+		return string(status.Phase)
+	}
 }
 
 // ClusterInfo 集群信息结构

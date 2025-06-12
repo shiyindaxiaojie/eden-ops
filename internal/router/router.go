@@ -19,6 +19,7 @@ func NewRouter(
 	k8sConfigHandler *handler.K8sConfigHandler,
 	k8sWorkloadHandler *handler.K8sWorkloadHandler,
 	k8sWorkloadNamespaceHandler *handler.K8sWorkloadNamespaceHandler,
+	k8sPodHandler *handler.K8sPodHandler,
 	userHandler *handler.UserHandler,
 	roleHandler *handler.RoleHandler,
 	menuHandler *handler.MenuHandler,
@@ -116,6 +117,10 @@ func NewRouter(
 		// Kubernetes工作负载管理
 		auth.GET("/k8s-workloads", k8sWorkloadHandler.List)
 		auth.GET("/k8s-workloads/:id", k8sWorkloadHandler.Get)
+
+		// Kubernetes Pod管理
+		auth.GET("/k8s-pods", k8sPodHandler.List)
+		auth.GET("/k8s-pods/:id", k8sPodHandler.Get)
 
 		// Kubernetes命名空间管理
 		auth.GET("/k8s-namespaces", k8sWorkloadNamespaceHandler.GetNamespacesByConfigID)

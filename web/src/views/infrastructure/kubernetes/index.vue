@@ -60,8 +60,19 @@
             </el-button>
           </template>
         </el-table-column>
-        <el-table-column prop="podCount" label="Pod数" width="70" align="center" />
-        <el-table-column prop="nodeCount" label="节点数" width="70" align="center" />
+        <el-table-column label="Pod" width="70" align="center">
+          <template #default="{ row }">
+            <el-button
+              type="primary"
+              link
+              @click="handleViewPods(row)"
+              style="font-weight: bold;"
+            >
+              {{ row.podCount || 0 }}
+            </el-button>
+          </template>
+        </el-table-column>
+        <el-table-column prop="nodeCount" label="节点" width="70" align="center" />
         <el-table-column label="CPU" width="120" align="center">
           <template #default="{ row }">
             <div v-if="row.cpuUsed && row.cpuTotal">
@@ -308,6 +319,17 @@ const handleViewWorkloads = (row: any) => {
   // 路由到工作负载页面，传递集群ID
   router.push({
     path: '/infrastructure/kubernetes/workloads',
+    query: {
+      configId: row.id,
+      clusterName: row.name
+    }
+  })
+}
+
+const handleViewPods = (row: any) => {
+  // 路由到Pod页面，传递集群ID
+  router.push({
+    path: '/infrastructure/kubernetes/pods',
     query: {
       configId: row.id,
       clusterName: row.name
