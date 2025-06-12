@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"eden-ops/internal/model"
+	"errors"
 	"fmt"
 
 	"gorm.io/gorm"
@@ -57,7 +58,7 @@ func (r *k8sConfigRepository) Get(id int64) (*model.K8sConfig, error) {
 	var config model.K8sConfig
 	err := r.db.First(&config, id).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("kubernetes配置不存在: %d", id)
 		}
 		return nil, fmt.Errorf("获取kubernetes配置失败: %v", err)
