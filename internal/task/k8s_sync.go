@@ -29,7 +29,7 @@ func NewK8sSyncTask(db *gorm.DB, service service.K8sConfigService, logger *logru
 		db:         db,
 		service:    service,
 		logger:     logger,
-		cron:       cron.New(),
+		cron:       cron.New(cron.WithSeconds()), // 启用秒级支持
 		jobEntries: make(map[int64]cron.EntryID),
 	}
 }
@@ -38,8 +38,8 @@ func NewK8sSyncTask(db *gorm.DB, service service.K8sConfigService, logger *logru
 func (t *K8sSyncTask) Start(ctx context.Context) error {
 	t.logger.Infof("启动 Kubernetes 同步任务")
 
-	// 启动定时检查任务，每分钟检查一次配置变化
-	_, err := t.cron.AddFunc("* * * * *", func() {
+	// 启动定时检查任务，每分钟检查一次配置变化（6字段格式：秒 分 时 日 月 周）
+	_, err := t.cron.AddFunc("0 * * * * *", func() {
 		t.refreshSyncJobs()
 	})
 
@@ -82,7 +82,7 @@ func (t *K8sSyncTask) refreshSyncJobs() {
 	file := filepath.Base(filePath)
 
 	// 获取所有启用的Kubernetes配置
-	configs, _, err := t.service.List(1, 1000)
+	configs, _, err := t.service.List(1, 1000, "", nil, nil)
 	if err != nil {
 		timestamp := time.Now().Format(utils.DateTimeMillisecond)
 		t.logger.Errorf("%s %s:%d 获取Kubernetes配置列表失败: %v", timestamp, file, line, err)
@@ -120,7 +120,7 @@ func (t *K8sSyncTask) refreshSyncJobs() {
 			syncInterval = 30 // 最低30秒
 		}
 
-		// 构建cron表达式：每N秒执行一次
+		// 构建cron表达式：每N秒执行一次（6字段格式：秒 分 时 日 月 周）
 		cronExpr := fmt.Sprintf("*/%d * * * * *", syncInterval)
 
 		entryID, err := t.cron.AddFunc(cronExpr, func() {

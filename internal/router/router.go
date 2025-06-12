@@ -147,6 +147,7 @@ func NewRouter(
 			infrastructure.POST("/kubernetes", k8sConfigHandler.Create)
 			infrastructure.PUT("/kubernetes/:id", k8sConfigHandler.Update)
 			infrastructure.DELETE("/kubernetes/:id", k8sConfigHandler.Delete)
+			infrastructure.POST("/kubernetes/test", k8sConfigHandler.TestConnection)
 		}
 	}
 

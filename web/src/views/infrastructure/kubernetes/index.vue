@@ -24,31 +24,74 @@
             />
           </el-select>
         </el-form-item>
+        <el-form-item label="状态" prop="status">
+          <el-select v-model="queryParams.status" placeholder="请选择状态" clearable>
+            <el-option label="全部" value="" />
+            <el-option label="启用" :value="1" />
+            <el-option label="禁用" :value="0" />
+          </el-select>
+        </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleQuery">查询</el-button>
           <el-button @click="resetQuery">重置</el-button>
         </el-form-item>
       </el-form>
 
-      <el-table :data="clusterList" v-loading="loading" style="width: 100%">
+      <el-table :data="clusterList" v-loading="loading" style="width: 100%; min-width: 1200px;">
         <el-table-column type="index" label="序号" width="60" />
-        <el-table-column prop="name" label="集群名称" min-width="120" />
-        <el-table-column prop="providerName" label="云厂商" min-width="120">
+        <el-table-column prop="name" label="集群名称" width="130" show-overflow-tooltip />
+        <el-table-column prop="providerName" label="云厂商" width="90" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.providerName }}
+            {{ row.providerName || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="description" label="描述" width="150" show-overflow-tooltip />
+        <el-table-column prop="context" label="Context" width="90" show-overflow-tooltip />
+        <el-table-column prop="version" label="版本" width="120" show-overflow-tooltip />
+        <el-table-column prop="nodeCount" label="节点数" width="70" align="center" />
+        <el-table-column prop="podCount" label="Pod数" width="70" align="center" />
+        <el-table-column label="CPU" width="120" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.status === 1 ? 'success' : 'danger'">
-              {{ row.status === 1 ? '启用' : '禁用' }}
-            </el-tag>
+            <div v-if="row.cpuUsed && row.cpuTotal">
+              <el-progress
+                :percentage="getCpuPercentage(row)"
+                :stroke-width="8"
+                :show-text="false"
+                style="margin-bottom: 2px;"
+              />
+              <div style="font-size: 11px; color: #666;">{{ row.cpuUsed }}/{{ row.cpuTotal }}</div>
+            </div>
+            <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="内存" width="120" align="center">
+          <template #default="{ row }">
+            <div v-if="row.memoryUsed && row.memoryTotal">
+              <el-progress
+                :percentage="getMemoryPercentage(row)"
+                :stroke-width="8"
+                :show-text="false"
+                style="margin-bottom: 2px;"
+              />
+              <div style="font-size: 11px; color: #666;">{{ row.memoryUsed }}/{{ row.memoryTotal }}</div>
+            </div>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="90" align="center">
+          <template #default="{ row }">
+            <el-switch
+              v-model="row.status"
+              :active-value="1"
+              :inactive-value="0"
+              @change="handleStatusChange(row)"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link @click="handleEdit(row)">编辑</el-button>
+            <el-button type="success" link @click="handleViewWorkloads(row)">工作负载</el-button>
             <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -97,6 +140,11 @@
             :rows="10"
             placeholder="请输入Kubeconfig配置"
           />
+          <div style="margin-top: 8px;">
+            <el-button type="primary" size="small" @click="handleTestConnection" :loading="testLoading">
+              测试连接
+            </el-button>
+          </div>
         </el-form-item>
         <el-form-item label="描述" prop="description">
           <el-input
@@ -146,12 +194,14 @@ const dialogVisible = ref(false)
 const dialogTitle = ref('')
 const formRef = ref<FormInstance>()
 const providerOptions = ref([])
+const testLoading = ref(false)
 
 const queryParams = ref({
   page: 1,
   pageSize: 10,
   name: '',
-  providerId: null
+  providerId: null,
+  status: ''
 })
 
 const form = ref({
@@ -205,7 +255,8 @@ const resetQuery = () => {
     page: 1,
     pageSize: 10,
     name: '',
-    providerId: null
+    providerId: null,
+    status: ''
   }
   getList()
 }
@@ -237,6 +288,17 @@ const handleEdit = (row: any) => {
     syncInterval: row.syncInterval || 30
   }
   dialogVisible.value = true
+}
+
+const handleViewWorkloads = (row: any) => {
+  // 路由到工作负载页面，传递集群ID
+  router.push({
+    path: '/infrastructure/kubernetes/workloads',
+    query: {
+      configId: row.id,
+      clusterName: row.name
+    }
+  })
 }
 
 const handleDelete = (row: any) => {
@@ -278,6 +340,102 @@ const handleSubmit = async () => {
       }
     }
   })
+}
+
+const handleStatusChange = async (row: any) => {
+  try {
+    await updateKubernetes(row.id, { ...row, status: row.status })
+    ElMessage.success(row.status === 1 ? '已启用' : '已禁用')
+    getList()
+  } catch (error) {
+    console.error('Failed to update status:', error)
+    ElMessage.error('状态更新失败')
+    // 恢复原状态
+    row.status = row.status === 1 ? 0 : 1
+  }
+}
+
+const handleTestConnection = async () => {
+  if (!form.value.kubeconfig) {
+    ElMessage.warning('请先输入Kubeconfig配置')
+    return
+  }
+
+  testLoading.value = true
+  try {
+    // 这里调用测试连接API
+    const response = await fetch('/api/v1/infrastructure/kubernetes/test', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify({
+        kubeconfig: form.value.kubeconfig
+      })
+    })
+
+    if (response.ok) {
+      ElMessage.success('连接测试成功')
+    } else {
+      ElMessage.error('连接测试失败')
+    }
+  } catch (error) {
+    console.error('Failed to test connection:', error)
+    ElMessage.error('连接测试失败')
+  } finally {
+    testLoading.value = false
+  }
+}
+
+// 计算CPU使用百分比
+const getCpuPercentage = (row: any) => {
+  if (!row.cpuUsed || !row.cpuTotal) return 0
+
+  // 解析CPU值，支持m（毫核）和k（千核）单位
+  const parseValue = (value: string) => {
+    if (value.endsWith('m')) {
+      return parseInt(value.slice(0, -1))
+    } else if (value.endsWith('k')) {
+      return parseInt(value.slice(0, -1)) * 1000
+    } else {
+      return parseInt(value) * 1000 // 默认为核心数，转换为毫核
+    }
+  }
+
+  const used = parseValue(row.cpuUsed)
+  const total = parseValue(row.cpuTotal)
+
+  return Math.round((used / total) * 100)
+}
+
+// 计算内存使用百分比
+const getMemoryPercentage = (row: any) => {
+  if (!row.memoryUsed || !row.memoryTotal) return 0
+
+  // 解析内存值，支持GB、MB、KB、PB等单位
+  const parseValue = (value: string) => {
+    const units = {
+      'KB': 1024,
+      'MB': 1024 * 1024,
+      'GB': 1024 * 1024 * 1024,
+      'TB': 1024 * 1024 * 1024 * 1024,
+      'PB': 1024 * 1024 * 1024 * 1024 * 1024
+    }
+
+    for (const [unit, multiplier] of Object.entries(units)) {
+      if (value.endsWith(unit)) {
+        return parseFloat(value.slice(0, -unit.length)) * multiplier
+      }
+    }
+
+    return parseFloat(value) // 默认为字节
+  }
+
+  const used = parseValue(row.memoryUsed)
+  const total = parseValue(row.memoryTotal)
+
+  return Math.round((used / total) * 100)
 }
 
 onMounted(() => {

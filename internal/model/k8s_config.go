@@ -15,9 +15,16 @@ type K8sConfig struct {
 	Status       int        `gorm:"type:tinyint;default:1" json:"status"`
 	SyncInterval int        `gorm:"type:int;default:30;comment:同步间隔(秒)" json:"syncInterval"`
 	Version      string     `gorm:"type:varchar(20)" json:"version"`
-	LastSyncTime *time.Time `json:"last_sync_time"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	Context      string     `gorm:"type:varchar(100)" json:"context"`
+	NodeCount    int        `gorm:"type:int;default:0" json:"nodeCount"`
+	PodCount     int        `gorm:"type:int;default:0" json:"podCount"`
+	CPUTotal     string     `gorm:"type:varchar(20)" json:"cpuTotal"`
+	CPUUsed      string     `gorm:"type:varchar(20)" json:"cpuUsed"`
+	MemoryTotal  string     `gorm:"type:varchar(20)" json:"memoryTotal"`
+	MemoryUsed   string     `gorm:"type:varchar(20)" json:"memoryUsed"`
+	LastSyncTime *time.Time `json:"lastSyncTime"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	UpdatedAt    time.Time  `json:"updatedAt"`
 	DeletedAt    *time.Time `gorm:"index" json:"-"`
 }
 

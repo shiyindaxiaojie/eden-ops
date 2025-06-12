@@ -25,8 +25,23 @@ func NewK8sConfigHandler(k8sConfigService service.K8sConfigService) *K8sConfigHa
 func (h *K8sConfigHandler) List(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
+	name := c.Query("name")
 
-	configs, total, err := h.k8sConfigService.List(page, pageSize)
+	var status *int
+	if statusStr := c.Query("status"); statusStr != "" {
+		if s, err := strconv.Atoi(statusStr); err == nil {
+			status = &s
+		}
+	}
+
+	var providerId *int64
+	if providerIdStr := c.Query("providerId"); providerIdStr != "" {
+		if p, err := strconv.ParseInt(providerIdStr, 10, 64); err == nil {
+			providerId = &p
+		}
+	}
+
+	configs, total, err := h.k8sConfigService.List(page, pageSize, name, status, providerId)
 	if err != nil {
 		response.Failed(c, err)
 		return
@@ -60,7 +75,7 @@ func (h *K8sConfigHandler) Create(c *gin.Context) {
 		return
 	}
 
-	if err := h.k8sConfigService.Create(&config); err != nil {
+	if err := h.k8sConfigService.CreateWithClusterInfo(&config); err != nil {
 		response.Failed(c, err)
 		return
 	}
@@ -83,7 +98,7 @@ func (h *K8sConfigHandler) Update(c *gin.Context) {
 	}
 
 	config.ID = int64(id)
-	if err := h.k8sConfigService.Update(&config); err != nil {
+	if err := h.k8sConfigService.UpdateWithClusterInfo(&config); err != nil {
 		response.Failed(c, err)
 		return
 	}

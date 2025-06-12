@@ -17,7 +17,7 @@ type K8sConfigRepository interface {
 	Update(config *model.K8sConfig) error
 	Delete(id int64) error
 	Get(id int64) (*model.K8sConfig, error)
-	List(page, pageSize int, name string) (int64, []model.K8sConfig, error)
+	List(page, pageSize int, name string, status *int, providerId *int64) (int64, []model.K8sConfig, error)
 }
 
 // k8sConfigRepository Kubernetes配置仓库实现
@@ -66,13 +66,19 @@ func (r *k8sConfigRepository) Get(id int64) (*model.K8sConfig, error) {
 }
 
 // List 获取Kubernetes配置列表
-func (r *k8sConfigRepository) List(page, pageSize int, name string) (int64, []model.K8sConfig, error) {
+func (r *k8sConfigRepository) List(page, pageSize int, name string, status *int, providerId *int64) (int64, []model.K8sConfig, error) {
 	var configs []model.K8sConfig
 	var total int64
 
 	query := r.db.Model(&model.K8sConfig{})
 	if name != "" {
-		query = query.Where("name LIKE ?", "%"+name+"%")
+		query = query.Where("infra_k8s_config.name LIKE ?", "%"+name+"%")
+	}
+	if status != nil {
+		query = query.Where("infra_k8s_config.status = ?", *status)
+	}
+	if providerId != nil {
+		query = query.Where("infra_k8s_config.provider_id = ?", *providerId)
 	}
 
 	if err := query.Count(&total).Error; err != nil {
@@ -83,8 +89,21 @@ func (r *k8sConfigRepository) List(page, pageSize int, name string) (int64, []mo
 	if err := query.Offset(offset).Limit(pageSize).
 		Select("infra_k8s_config.*, infra_cloud_provider.name as provider_name").
 		Joins("LEFT JOIN infra_cloud_provider ON infra_k8s_config.provider_id = infra_cloud_provider.id").
-		Find(&configs).Error; err != nil {
+		Scan(&configs).Error; err != nil {
 		return 0, nil, err
+	}
+
+	// 手动设置ProviderName字段
+	for i := range configs {
+		if configs[i].ProviderId != nil {
+			var providerName string
+			if err := r.db.Model(&model.CloudProvider{}).
+				Where("id = ?", *configs[i].ProviderId).
+				Select("name").
+				Scan(&providerName).Error; err == nil {
+				configs[i].ProviderName = providerName
+			}
+		}
 	}
 
 	return total, configs, nil

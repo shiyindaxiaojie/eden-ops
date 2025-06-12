@@ -7,6 +7,7 @@ import (
 	"eden-ops/internal/repository"
 	"eden-ops/internal/router"
 	"eden-ops/internal/service"
+	"eden-ops/internal/task"
 	"eden-ops/pkg/auth"
 	"eden-ops/pkg/config"
 	"eden-ops/pkg/logger"
@@ -175,6 +176,7 @@ func main() {
 	databaseConfigRepo := repository.NewDatabaseConfigRepository(db)
 	serverConfigRepo := repository.NewServerConfigRepository(db)
 	k8sConfigRepo := repository.NewK8sConfigRepository(db)
+	k8sWorkloadRepo := repository.NewK8sWorkloadRepository(db)
 
 	// 初始化服务
 	userService := service.NewUserService(userRepo, jwtAuth)
@@ -184,11 +186,23 @@ func main() {
 	cloudProviderService := service.NewCloudProviderService(cloudProviderRepo)
 	databaseConfigService := service.NewDatabaseConfigService(databaseConfigRepo)
 	serverConfigService := service.NewServerConfigService(serverConfigRepo)
-	k8sConfigService := service.NewK8sConfigService(k8sConfigRepo)
+	k8sWorkloadService := service.NewK8sWorkloadService(k8sWorkloadRepo)
+	k8sConfigService := service.NewK8sConfigService(k8sConfigRepo, k8sWorkloadService)
 
 	// 创建日志记录器
 	logrusLogger := logrus.New()
 	logrusLogger.SetFormatter(&logger.CustomFormatter{})
+
+	// 启动K8s同步任务
+	k8sSyncTask := task.NewK8sSyncTask(db, k8sConfigService, logrusLogger)
+	syncCtx, syncCancel := context.WithCancel(context.Background())
+	defer syncCancel()
+
+	go func() {
+		if err := k8sSyncTask.Start(syncCtx); err != nil {
+			logger.Error("启动K8s同步任务失败: %v", err)
+		}
+	}()
 
 	// 初始化处理器
 	userHandler := handler.NewUserHandler(userService, jwtAuth)
