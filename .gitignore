@@ -73,6 +73,15 @@ web/npm-debug.log*
 web/yarn-debug.log*
 web/yarn-error.log*
 
+# TypeScript 编译生成的文件
+web/src/**/*.js
+web/src/**/*.js.map
+web/src/**/*.d.ts
+!web/src/**/*shims*.d.ts
+!web/src/**/vite-env.d.ts
+web/tsconfig.tsbuildinfo
+web/*.tsbuildinfo
+
 # Backend
 .env.*
 config.yaml

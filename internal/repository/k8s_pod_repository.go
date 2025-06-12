@@ -13,7 +13,7 @@ type K8sPodRepository interface {
 	Delete(id int64) error
 	Get(id int64) (*model.K8sPod, error)
 	List(configID int64, page, pageSize int) (int64, []model.K8sPod, error)
-	ListWithFilter(page, pageSize int, name, namespace, workloadName, status, sortBy, sortOrder string, startTime, endTime *string, configId *int64) (int64, []model.K8sPod, error)
+	ListWithFilter(page, pageSize int, name, namespace, workloadName, status, instanceIP, sortBy, sortOrder string, startTime, endTime *string, configId *int64) (int64, []model.K8sPod, error)
 	ListByConfigID(configID int64) ([]model.K8sPod, error)
 	DeleteByConfigID(configID int64) error
 	BatchCreate(pods []model.K8sPod) error
@@ -74,7 +74,7 @@ func (r *k8sPodRepository) List(configID int64, page, pageSize int) (int64, []mo
 }
 
 // ListWithFilter 获取Pod列表（支持筛选）
-func (r *k8sPodRepository) ListWithFilter(page, pageSize int, name, namespace, workloadName, status, sortBy, sortOrder string, startTime, endTime *string, configId *int64) (int64, []model.K8sPod, error) {
+func (r *k8sPodRepository) ListWithFilter(page, pageSize int, name, namespace, workloadName, status, instanceIP, sortBy, sortOrder string, startTime, endTime *string, configId *int64) (int64, []model.K8sPod, error) {
 	var pods []model.K8sPod
 	var total int64
 
@@ -96,7 +96,10 @@ func (r *k8sPodRepository) ListWithFilter(page, pageSize int, name, namespace, w
 	if status != "" {
 		query = query.Where("status = ?", status)
 	}
-	
+	if instanceIP != "" {
+		query = query.Where("instance_ip LIKE ?", "%"+instanceIP+"%")
+	}
+
 	// 时间范围筛选
 	if startTime != nil && *startTime != "" {
 		query = query.Where("created_at >= ?", *startTime)

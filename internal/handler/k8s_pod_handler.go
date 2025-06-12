@@ -26,6 +26,7 @@ func (h *K8sPodHandler) List(c *gin.Context) {
 	namespace := c.Query("namespace")
 	workloadName := c.Query("workloadName")
 	status := c.Query("status")
+	instanceIP := c.Query("instanceIP")
 	sortBy := c.Query("sortBy")
 	sortOrder := c.DefaultQuery("sortOrder", "asc")
 	startTimeStr := c.Query("startTime")
@@ -47,7 +48,7 @@ func (h *K8sPodHandler) List(c *gin.Context) {
 		endTime = &endTimeStr
 	}
 
-	pods, total, err := h.podService.ListWithFilter(page, pageSize, name, namespace, workloadName, status, sortBy, sortOrder, startTime, endTime, configId)
+	pods, total, err := h.podService.ListWithFilter(page, pageSize, name, namespace, workloadName, status, instanceIP, sortBy, sortOrder, startTime, endTime, configId)
 	if err != nil {
 		response.Failed(c, err)
 		return

@@ -177,7 +177,7 @@ func main() {
 	serverConfigRepo := repository.NewServerConfigRepository(db)
 	k8sConfigRepo := repository.NewK8sConfigRepository(db)
 	k8sWorkloadRepo := repository.NewK8sWorkloadRepository(db)
-	k8sWorkloadNamespaceRepo := repository.NewK8sWorkloadNamespaceRepository(db)
+	k8sNamespaceRepo := repository.NewK8sNamespaceRepository(db)
 	k8sPodRepo := repository.NewK8sPodRepository(db)
 
 	// 初始化服务
@@ -190,7 +190,7 @@ func main() {
 	serverConfigService := service.NewServerConfigService(serverConfigRepo)
 	k8sWorkloadService := service.NewK8sWorkloadService(k8sWorkloadRepo)
 	k8sPodService := service.NewK8sPodService(k8sPodRepo)
-	k8sConfigService := service.NewK8sConfigService(k8sConfigRepo, k8sWorkloadService, k8sWorkloadRepo, k8sWorkloadNamespaceRepo, k8sPodService)
+	k8sConfigService := service.NewK8sConfigService(k8sConfigRepo, k8sWorkloadService, k8sWorkloadRepo, k8sNamespaceRepo, k8sPodService)
 
 	// 创建日志记录器
 	logrusLogger := logrus.New()
@@ -218,7 +218,7 @@ func main() {
 	serverConfigHandler := handler.NewServerConfigHandler(serverConfigService, logrusLogger)
 	k8sConfigHandler := handler.NewK8sConfigHandler(k8sConfigService)
 	k8sWorkloadHandler := handler.NewK8sWorkloadHandler(k8sWorkloadService)
-	k8sWorkloadNamespaceHandler := handler.NewK8sWorkloadNamespaceHandler(k8sWorkloadNamespaceRepo)
+	k8sNamespaceHandler := handler.NewK8sNamespaceHandler(k8sNamespaceRepo)
 	k8sPodHandler := handler.NewK8sPodHandler(k8sPodService)
 
 	// 初始化路由
@@ -231,7 +231,7 @@ func main() {
 		serverConfigHandler,
 		k8sConfigHandler,
 		k8sWorkloadHandler,
-		k8sWorkloadNamespaceHandler,
+		k8sNamespaceHandler,
 		k8sPodHandler,
 		userHandler,
 		roleHandler,

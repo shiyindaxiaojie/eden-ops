@@ -12,7 +12,7 @@
       </template>
 
       <el-form :model="queryParams" ref="queryForm" :inline="true" class="search-form">
-        <el-form-item label="Pod 名称" prop="name">
+        <el-form-item label="名称" prop="name">
           <el-input v-model="queryParams.name" placeholder="请输入Pod名称" clearable />
         </el-form-item>
         <el-form-item label="命名空间" prop="namespace">
@@ -27,6 +27,9 @@
         </el-form-item>
         <el-form-item label="工作负载" prop="workloadName">
           <el-input v-model="queryParams.workloadName" placeholder="请输入工作负载名称" clearable />
+        </el-form-item>
+        <el-form-item label="实例IP" prop="instanceIP">
+          <el-input v-model="queryParams.instanceIP" placeholder="请输入实例IP" clearable />
         </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-select v-model="queryParams.status" placeholder="请选择状态" clearable style="min-width: 120px;">
@@ -137,6 +140,7 @@ const queryParams = ref({
   name: '',
   namespace: '',
   workloadName: '',
+  instanceIP: '',
   status: '',
   sortBy: '',
   sortOrder: 'asc',
@@ -189,6 +193,7 @@ const resetQuery = () => {
     name: '',
     namespace: '',
     workloadName: '',
+    instanceIP: '',
     status: '',
     sortBy: '',
     sortOrder: 'asc',

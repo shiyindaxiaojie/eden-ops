@@ -40,7 +40,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&DatabaseConfig{},
 		&K8sConfig{},
 		&K8sWorkload{},
-		&K8sWorkloadNamespace{},
+		&K8sNamespace{},
 		&K8sPod{},
 		&ServerConfig{},
 		&Migration{},

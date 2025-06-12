@@ -51,6 +51,7 @@ type K8sConfigResponse struct {
 	ID            int64      `json:"id"`
 	Name          string     `json:"name"`
 	Description   string     `json:"description"`
+	Kubeconfig    string     `json:"kubeconfig"`
 	ProviderId    *int64     `json:"providerId"`
 	ProviderName  string     `json:"providerName"`
 	Status        int        `json:"status"`
@@ -75,6 +76,7 @@ func (c *K8sConfig) ToResponse() *K8sConfigResponse {
 		ID:            c.ID,
 		Name:          c.Name,
 		Description:   c.Description,
+		Kubeconfig:    c.Kubeconfig,
 		ProviderId:    c.ProviderId,
 		ProviderName:  c.ProviderName,
 		Status:        c.Status,

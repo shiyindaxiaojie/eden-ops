@@ -12,7 +12,7 @@ type K8sPodService interface {
 	Delete(id int64) error
 	Get(id int64) (*model.K8sPod, error)
 	List(configID int64, page, pageSize int) ([]model.K8sPod, int64, error)
-	ListWithFilter(page, pageSize int, name, namespace, workloadName, status, sortBy, sortOrder string, startTime, endTime *string, configId *int64) ([]*model.K8sPodResponse, int64, error)
+	ListWithFilter(page, pageSize int, name, namespace, workloadName, status, instanceIP, sortBy, sortOrder string, startTime, endTime *string, configId *int64) ([]*model.K8sPodResponse, int64, error)
 	ListByConfigID(configID int64) ([]model.K8sPod, error)
 	DeleteByConfigID(configID int64) error
 	SyncPods(configID int64, pods []model.K8sPod) error
@@ -60,8 +60,8 @@ func (s *k8sPodService) List(configID int64, page, pageSize int) ([]model.K8sPod
 }
 
 // ListWithFilter 获取Pod列表（支持筛选）
-func (s *k8sPodService) ListWithFilter(page, pageSize int, name, namespace, workloadName, status, sortBy, sortOrder string, startTime, endTime *string, configId *int64) ([]*model.K8sPodResponse, int64, error) {
-	total, pods, err := s.repo.ListWithFilter(page, pageSize, name, namespace, workloadName, status, sortBy, sortOrder, startTime, endTime, configId)
+func (s *k8sPodService) ListWithFilter(page, pageSize int, name, namespace, workloadName, status, instanceIP, sortBy, sortOrder string, startTime, endTime *string, configId *int64) ([]*model.K8sPodResponse, int64, error) {
+	total, pods, err := s.repo.ListWithFilter(page, pageSize, name, namespace, workloadName, status, instanceIP, sortBy, sortOrder, startTime, endTime, configId)
 	if err != nil {
 		return nil, 0, err
 	}

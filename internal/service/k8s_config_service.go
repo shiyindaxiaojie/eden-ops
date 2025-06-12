@@ -38,12 +38,12 @@ type k8sConfigService struct {
 	repo                repository.K8sConfigRepository
 	workloadService     K8sWorkloadService
 	workloadRepo        repository.K8sWorkloadRepository
-	namespaceRepository repository.K8sWorkloadNamespaceRepository
+	namespaceRepository repository.K8sNamespaceRepository
 	podService          K8sPodService
 }
 
 // NewK8sConfigService 创建Kubernetes配置服务
-func NewK8sConfigService(repo repository.K8sConfigRepository, workloadService K8sWorkloadService, workloadRepo repository.K8sWorkloadRepository, namespaceRepo repository.K8sWorkloadNamespaceRepository, podService K8sPodService) K8sConfigService {
+func NewK8sConfigService(repo repository.K8sConfigRepository, workloadService K8sWorkloadService, workloadRepo repository.K8sWorkloadRepository, namespaceRepo repository.K8sNamespaceRepository, podService K8sPodService) K8sConfigService {
 	return &k8sConfigService{
 		repo:                repo,
 		workloadService:     workloadService,
@@ -318,7 +318,7 @@ func (s *k8sConfigService) syncNamespaces(configID int64, workloads []model.K8sW
 
 	// 创建新的命名空间记录
 	for namespace, count := range namespaceCount {
-		nsRecord := &model.K8sWorkloadNamespace{
+		nsRecord := &model.K8sNamespace{
 			ConfigID:      configID,
 			Namespace:     namespace,
 			WorkloadCount: count,

@@ -4,8 +4,8 @@ import (
 	"time"
 )
 
-// K8sWorkloadNamespace K8s工作负载命名空间模型
-type K8sWorkloadNamespace struct {
+// K8sNamespace K8s命名空间模型
+type K8sNamespace struct {
 	ID            int64      `json:"id" gorm:"primaryKey"`
 	ConfigID      int64      `json:"config_id" gorm:"not null;index"`
 	Namespace     string     `json:"namespace" gorm:"size:255;not null;index"`
@@ -17,12 +17,12 @@ type K8sWorkloadNamespace struct {
 }
 
 // TableName 表名
-func (K8sWorkloadNamespace) TableName() string {
-	return "infra_k8s_workload_namespace"
+func (K8sNamespace) TableName() string {
+	return "infra_k8s_namespace"
 }
 
-// K8sWorkloadNamespaceResponse 命名空间响应结构
-type K8sWorkloadNamespaceResponse struct {
+// K8sNamespaceResponse 命名空间响应结构
+type K8sNamespaceResponse struct {
 	ID            int64     `json:"id"`
 	ConfigID      int64     `json:"config_id"`
 	Namespace     string    `json:"namespace"`
@@ -32,8 +32,8 @@ type K8sWorkloadNamespaceResponse struct {
 }
 
 // ToResponse 转换为响应结构
-func (n *K8sWorkloadNamespace) ToResponse() *K8sWorkloadNamespaceResponse {
-	return &K8sWorkloadNamespaceResponse{
+func (n *K8sNamespace) ToResponse() *K8sNamespaceResponse {
+	return &K8sNamespaceResponse{
 		ID:            n.ID,
 		ConfigID:      n.ConfigID,
 		Namespace:     n.Namespace,

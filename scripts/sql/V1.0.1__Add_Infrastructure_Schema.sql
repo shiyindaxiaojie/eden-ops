@@ -131,8 +131,8 @@ CREATE TABLE IF NOT EXISTS `infra_k8s_workload` (
   KEY `idx_kind` (`kind`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Kubernetes工作负载';
 
--- 创建K8s工作负载命名空间表
-CREATE TABLE IF NOT EXISTS `infra_k8s_workload_namespace` (
+-- 创建K8s命名空间表
+CREATE TABLE IF NOT EXISTS `infra_k8s_namespace` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '命名空间ID',
   `config_id` bigint NOT NULL COMMENT 'K8s配置ID',
   `namespace` varchar(255) NOT NULL COMMENT '命名空间名称',
@@ -146,7 +146,7 @@ CREATE TABLE IF NOT EXISTS `infra_k8s_workload_namespace` (
   KEY `idx_namespace` (`namespace`),
   KEY `idx_deleted_at` (`deleted_at`),
   CONSTRAINT `fk_k8s_namespace_config` FOREIGN KEY (`config_id`) REFERENCES `infra_k8s_config` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='K8s工作负载命名空间表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='K8s命名空间表';
 
 -- 初始化云厂商数据
 INSERT INTO `infra_cloud_provider` (`name`, `code`, `description`, `status`) VALUES 

@@ -8,18 +8,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// K8sWorkloadNamespaceHandler K8s工作负载命名空间处理器
-type K8sWorkloadNamespaceHandler struct {
-	repo repository.K8sWorkloadNamespaceRepository
+// K8sNamespaceHandler K8s命名空间处理器
+type K8sNamespaceHandler struct {
+	repo repository.K8sNamespaceRepository
 }
 
-// NewK8sWorkloadNamespaceHandler 创建K8s工作负载命名空间处理器
-func NewK8sWorkloadNamespaceHandler(repo repository.K8sWorkloadNamespaceRepository) *K8sWorkloadNamespaceHandler {
-	return &K8sWorkloadNamespaceHandler{repo: repo}
+// NewK8sNamespaceHandler 创建K8s命名空间处理器
+func NewK8sNamespaceHandler(repo repository.K8sNamespaceRepository) *K8sNamespaceHandler {
+	return &K8sNamespaceHandler{repo: repo}
 }
 
 // GetNamespacesByConfigID 根据配置ID获取命名空间列表
-func (h *K8sWorkloadNamespaceHandler) GetNamespacesByConfigID(c *gin.Context) {
+func (h *K8sNamespaceHandler) GetNamespacesByConfigID(c *gin.Context) {
 	configIDStr := c.Query("configId")
 	if configIDStr == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
