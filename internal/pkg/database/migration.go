@@ -3,10 +3,10 @@ package database
 import (
 	"crypto/md5"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -27,6 +27,14 @@ type MigrationService struct {
 // NewMigrationService 创建迁移服务
 func NewMigrationService(db *DB) *MigrationService {
 	return &MigrationService{db: db.DB}
+}
+
+// migrationLog 迁移日志函数
+func migrationLog(format string, args ...interface{}) {
+	timestamp := time.Now().Format("2006/01/02 15:04:05.000")
+	_, file, line, _ := runtime.Caller(1)
+	fileName := filepath.Base(file)
+	fmt.Printf("%s %s:%d %s\n", timestamp, fileName, line, fmt.Sprintf(format, args...))
 }
 
 // splitSQLStatements 分割SQL语句
@@ -127,44 +135,44 @@ func (s *MigrationService) executeSQLStatements(statements []string) error {
 
 // Migrate 执行数据库迁移
 func (s *MigrationService) Migrate(scriptDir string) error {
-	log.Printf("开始执行数据库迁移: 脚本目录=%s", scriptDir)
+	migrationLog("开始执行数据库迁移: 脚本目录=%s", scriptDir)
 
 	// 检查版本表是否存在
 	exists, err := s.isVersionTableExists()
 	if err != nil {
-		log.Printf("检查版本表是否存在失败: %v", err)
+		migrationLog("检查版本表是否存在失败: %v", err)
 		return fmt.Errorf("检查版本表是否存在失败: %v", err)
 	}
 
 	// 如果版本表不存在，创建它
 	if !exists {
-		log.Printf("版本表不存在，开始创建")
+		migrationLog("版本表不存在，开始创建")
 		if err := s.createVersionTable(); err != nil {
-			log.Printf("创建版本表失败: %v", err)
+			migrationLog("创建版本表失败: %v", err)
 			return fmt.Errorf("创建版本表失败: %v", err)
 		}
-		log.Printf("版本表创建成功")
+		migrationLog("版本表创建成功")
 	} else {
-		log.Printf("版本表已存在")
+		migrationLog("版本表已存在")
 	}
 
 	// 获取已执行的版本记录
-	log.Printf("获取已执行的版本记录")
+	migrationLog("获取已执行的版本记录")
 	executedVersions, err := s.getExecutedVersions()
 	if err != nil {
-		log.Printf("获取已执行版本记录失败: %v", err)
+		migrationLog("获取已执行版本记录失败: %v", err)
 		return err
 	}
-	log.Printf("已执行版本数量: %d", len(executedVersions))
+	migrationLog("已执行版本数量: %d", len(executedVersions))
 
 	// 获取所有SQL文件
-	log.Printf("查找SQL脚本文件")
+	migrationLog("查找SQL脚本文件")
 	files, err := filepath.Glob(filepath.Join(scriptDir, "V*.sql"))
 	if err != nil {
-		log.Printf("读取SQL文件失败: %v", err)
+		migrationLog("读取SQL文件失败: %v", err)
 		return fmt.Errorf("读取SQL文件失败: %v", err)
 	}
-	log.Printf("找到SQL脚本文件: %d个", len(files))
+	migrationLog("找到SQL脚本文件: %d个", len(files))
 
 	// 按文件名排序
 	sort.Strings(files)
@@ -172,42 +180,42 @@ func (s *MigrationService) Migrate(scriptDir string) error {
 	// 遍历所有SQL文件
 	for _, file := range files {
 		filename := filepath.Base(file)
-		log.Printf("处理脚本文件: %s", filename)
+		migrationLog("处理脚本文件: %s", filename)
 
 		// 解析版本信息
 		version, description, err := parseScriptVersion(filename)
 		if err != nil {
-			log.Printf("解析版本信息失败: %v", err)
+			migrationLog("解析版本信息失败: %v", err)
 			return err
 		}
-		log.Printf("脚本版本: %s, 描述: %s", version, description)
+		migrationLog("脚本版本: %s, 描述: %s", version, description)
 
 		// 检查是否已经执行过
 		if executed, ok := executedVersions[version]; ok {
-			log.Printf("版本 %s 已执行，检查校验和", version)
+			migrationLog("版本 %s 已执行，检查校验和", version)
 
 			// 读取SQL文件内容并验证校验和
 			content, err := os.ReadFile(file)
 			if err != nil {
-				log.Printf("读取SQL文件失败: %v", err)
+				migrationLog("读取SQL文件失败: %v", err)
 				return fmt.Errorf("读取SQL文件失败: %v", err)
 			}
 
 			checksum := fmt.Sprintf("%x", md5.Sum(content))
 			if checksum != executed.Checksum {
-				log.Printf("脚本文件 %s 已被修改，期望校验和: %s, 实际校验和: %s", filename, executed.Checksum, checksum)
+				migrationLog("脚本文件 %s 已被修改，期望校验和: %s, 实际校验和: %s", filename, executed.Checksum, checksum)
 				return fmt.Errorf("脚本文件 %s 已被修改", filename)
 			}
-			log.Printf("版本 %s 校验和验证通过，跳过执行", version)
+			migrationLog("版本 %s 校验和验证通过，跳过执行", version)
 			continue
 		}
 
-		log.Printf("开始执行版本 %s", version)
+		migrationLog("开始执行版本 %s", version)
 
 		// 读取SQL文件内容
 		content, err := os.ReadFile(file)
 		if err != nil {
-			log.Printf("读取SQL文件失败: %v", err)
+			migrationLog("读取SQL文件失败: %v", err)
 			return fmt.Errorf("读取SQL文件失败: %v", err)
 		}
 
@@ -248,6 +256,6 @@ func (s *MigrationService) Migrate(scriptDir string) error {
 		}
 	}
 
-	log.Printf("数据库迁移完成")
+	migrationLog("数据库迁移完成")
 	return nil
 }

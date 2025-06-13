@@ -2,15 +2,11 @@ package task
 
 import (
 	"context"
-	"eden-ops/internal/pkg/utils"
 	"eden-ops/internal/service"
+	"eden-ops/pkg/logger"
 	"fmt"
-	"path/filepath"
-	"runtime"
-	"time"
 
 	"github.com/robfig/cron/v3"
-	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
 
@@ -18,17 +14,15 @@ import (
 type K8sSyncTask struct {
 	db         *gorm.DB
 	service    service.K8sConfigService
-	logger     *logrus.Logger
 	cron       *cron.Cron
 	jobEntries map[int64]cron.EntryID // 存储每个集群的任务ID
 }
 
 // NewK8sSyncTask 创建Kubernetes同步任务
-func NewK8sSyncTask(db *gorm.DB, service service.K8sConfigService, logger *logrus.Logger) *K8sSyncTask {
+func NewK8sSyncTask(db *gorm.DB, service service.K8sConfigService) *K8sSyncTask {
 	return &K8sSyncTask{
 		db:         db,
 		service:    service,
-		logger:     logger,
 		cron:       cron.New(cron.WithSeconds()), // 启用秒级支持
 		jobEntries: make(map[int64]cron.EntryID),
 	}
@@ -36,7 +30,7 @@ func NewK8sSyncTask(db *gorm.DB, service service.K8sConfigService, logger *logru
 
 // Start 启动同步任务
 func (t *K8sSyncTask) Start(ctx context.Context) error {
-	t.logger.Infof("启动 Kubernetes 同步任务")
+	logger.Info("启动 Kubernetes 同步任务")
 
 	// 启动定时检查任务，每30秒检查一次配置变化（6字段格式：秒 分 时 日 月 周）
 	_, err := t.cron.AddFunc("*/30 * * * * *", func() {
@@ -56,13 +50,7 @@ func (t *K8sSyncTask) Start(ctx context.Context) error {
 	go func() {
 		<-ctx.Done()
 		t.Stop()
-
-		// 获取调用信息
-		_, filePath, line, _ := runtime.Caller(0)
-		file := filepath.Base(filePath)
-
-		timestamp := time.Now().Format(utils.DateTimeMillisecond)
-		t.logger.Infof("%s %s:%d 停止 Kubernetes 同步任务", timestamp, file, line)
+		logger.Info("停止 Kubernetes 同步任务")
 	}()
 
 	return nil
@@ -82,15 +70,10 @@ func (t *K8sSyncTask) RefreshJobs() {
 
 // refreshSyncJobs 刷新同步任务
 func (t *K8sSyncTask) refreshSyncJobs() {
-	// 获取调用信息
-	_, filePath, line, _ := runtime.Caller(0)
-	file := filepath.Base(filePath)
-
 	// 获取所有启用的Kubernetes配置
 	configs, _, err := t.service.List(1, 1000, "", nil, nil, "")
 	if err != nil {
-		timestamp := time.Now().Format(utils.DateTimeMillisecond)
-		t.logger.Errorf("%s %s:%d 获取Kubernetes配置列表失败: %v", timestamp, file, line, err)
+		logger.Error("获取Kubernetes配置列表失败: %v", err)
 		return
 	}
 
@@ -108,8 +91,7 @@ func (t *K8sSyncTask) refreshSyncJobs() {
 			if entryID, exists := t.jobEntries[configID]; exists {
 				t.cron.Remove(entryID)
 				delete(t.jobEntries, configID)
-				timestamp := time.Now().Format(utils.DateTimeMillisecond)
-				t.logger.Infof("%s %s:%d 移除集群 %s 的同步任务（已禁用）", timestamp, file, line, config.Name)
+				logger.Info("移除集群 %s 的同步任务（已禁用）", config.Name)
 			}
 			continue
 		}
@@ -133,14 +115,12 @@ func (t *K8sSyncTask) refreshSyncJobs() {
 		})
 
 		if err != nil {
-			timestamp := time.Now().Format(utils.DateTimeMillisecond)
-			t.logger.Errorf("%s %s:%d 为集群 %s 创建同步任务失败: %v", timestamp, file, line, config.Name, err)
+			logger.Error("为集群 %s 创建同步任务失败: %v", config.Name, err)
 			continue
 		}
 
 		t.jobEntries[configID] = entryID
-		timestamp := time.Now().Format(utils.DateTimeMillisecond)
-		t.logger.Infof("%s %s:%d 为集群 %s 创建同步任务，间隔 %d 秒", timestamp, file, line, config.Name, syncInterval)
+		logger.Info("为集群 %s 创建同步任务，间隔 %d 秒", config.Name, syncInterval)
 	}
 
 	// 移除不再存在的集群的同步任务
@@ -148,23 +128,15 @@ func (t *K8sSyncTask) refreshSyncJobs() {
 		if !activeConfigIDs[configID] {
 			t.cron.Remove(entryID)
 			delete(t.jobEntries, configID)
-			timestamp := time.Now().Format(utils.DateTimeMillisecond)
-			t.logger.Infof("%s %s:%d 移除集群 ID %d 的同步任务（配置已删除）", timestamp, file, line, configID)
+			logger.Info("移除集群 ID %d 的同步任务（配置已删除）", configID)
 		}
 	}
 }
 
 // syncSingleCluster 同步单个集群
 func (t *K8sSyncTask) syncSingleCluster(configID int64, clusterName string) {
-	// 获取调用信息
-	_, filePath, line, _ := runtime.Caller(0)
-	file := filepath.Base(filePath)
-
 	if err := t.service.SyncCluster(configID); err != nil {
-		timestamp := time.Now().Format(utils.DateTimeMillisecond)
-		t.logger.Errorf("%s %s:%d 同步集群 %s 失败: %v", timestamp, file, line, clusterName, err)
-	} else {
-		timestamp := time.Now().Format(utils.DateTimeMillisecond)
-		t.logger.Infof("%s %s:%d 同步集群 %s 成功", timestamp, file, line, clusterName)
+		logger.Error("同步集群 %s 失败: %v", clusterName, err)
 	}
+	// 成功信息已在SyncCluster方法中输出，这里不再重复记录
 }

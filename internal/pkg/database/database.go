@@ -2,7 +2,8 @@ package database
 
 import (
 	"fmt"
-	"log"
+	"path/filepath"
+	"runtime"
 	"time"
 
 	"eden-ops/internal/model"
@@ -38,7 +39,26 @@ func (DBVersion) TableName() string {
 
 // InitDB 初始化数据库连接
 func InitDB(cfg *config.Config) (*DB, error) {
-	log.Printf("开始初始化数据库连接")
+	// 使用项目日志系统
+	var pkgLogger = struct {
+		Info  func(string, ...interface{})
+		Error func(string, ...interface{})
+	}{
+		Info: func(format string, args ...interface{}) {
+			timestamp := time.Now().Format("2006/01/02 15:04:05.000")
+			_, file, line, _ := runtime.Caller(1)
+			fileName := filepath.Base(file)
+			fmt.Printf("%s %s:%d %s\n", timestamp, fileName, line, fmt.Sprintf(format, args...))
+		},
+		Error: func(format string, args ...interface{}) {
+			timestamp := time.Now().Format("2006/01/02 15:04:05.000")
+			_, file, line, _ := runtime.Caller(1)
+			fileName := filepath.Base(file)
+			fmt.Printf("%s %s:%d ERROR: %s\n", timestamp, fileName, line, fmt.Sprintf(format, args...))
+		},
+	}
+
+	pkgLogger.Info("开始初始化数据库连接")
 
 	logObj := logrus.New()
 	logObj.SetFormatter(&logger.CustomFormatter{
@@ -46,12 +66,12 @@ func InitDB(cfg *config.Config) (*DB, error) {
 	})
 
 	// 首先创建数据库
-	log.Printf("尝试创建数据库: %s", cfg.Database.DBName)
+	pkgLogger.Info("尝试创建数据库: %s", cfg.Database.DBName)
 	if err := createDatabase(cfg); err != nil {
-		log.Printf("创建数据库失败: %v", err)
+		pkgLogger.Error("创建数据库失败: %v", err)
 		return nil, fmt.Errorf("创建数据库失败: %v", err)
 	}
-	log.Printf("数据库创建成功或已存在")
+	pkgLogger.Info("数据库创建成功或已存在")
 
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local&allowNativePasswords=true",
 		cfg.Database.Username,
@@ -60,7 +80,7 @@ func InitDB(cfg *config.Config) (*DB, error) {
 		cfg.Database.Port,
 		cfg.Database.DBName,
 	)
-	log.Printf("数据库连接DSN: %s", dsn)
+	pkgLogger.Info("数据库连接DSN: %s", dsn)
 
 	// 配置 GORM
 	gormConfig := &gorm.Config{
@@ -69,20 +89,20 @@ func InitDB(cfg *config.Config) (*DB, error) {
 	}
 
 	// 连接数据库
-	log.Printf("尝试连接数据库")
+	pkgLogger.Info("尝试连接数据库")
 	gormDB, err := gorm.Open(mysql.Open(dsn), gormConfig)
 	if err != nil {
-		log.Printf("连接数据库失败: %v", err)
+		pkgLogger.Error("连接数据库失败: %v", err)
 		return nil, fmt.Errorf("连接数据库失败: %v", err)
 	}
-	log.Printf("数据库连接成功")
+	pkgLogger.Info("数据库连接成功")
 
 	db := &DB{DB: gormDB}
 
 	// 获取底层的 *sql.DB 对象
 	sqlDB, err := gormDB.DB()
 	if err != nil {
-		log.Printf("获取 *sql.DB 失败: %v", err)
+		pkgLogger.Error("获取 *sql.DB 失败: %v", err)
 		return nil, fmt.Errorf("获取 *sql.DB 失败: %v", err)
 	}
 
@@ -90,24 +110,24 @@ func InitDB(cfg *config.Config) (*DB, error) {
 	sqlDB.SetMaxIdleConns(cfg.Database.MaxIdleConns)
 	sqlDB.SetMaxOpenConns(cfg.Database.MaxOpenConns)
 	sqlDB.SetConnMaxLifetime(cfg.Database.ConnMaxLifetime)
-	log.Printf("数据库连接池参数设置完成")
+	pkgLogger.Info("数据库连接池参数设置完成")
 
 	// 执行初始化脚本
-	log.Printf("开始执行数据库初始化")
+	pkgLogger.Info("开始执行数据库初始化")
 	if err := initializeDatabase(db.DB, logObj); err != nil {
-		log.Printf("执行初始化脚本失败: %v", err)
+		pkgLogger.Error("执行初始化脚本失败: %v", err)
 		return nil, fmt.Errorf("执行初始化脚本失败: %v", err)
 	}
-	log.Printf("数据库初始化完成")
+	pkgLogger.Info("数据库初始化完成")
 
 	// 初始化数据库迁移
-	log.Printf("开始执行数据库迁移")
+	pkgLogger.Info("开始执行数据库迁移")
 	migrationService := NewMigrationService(db)
 	if err := migrationService.Migrate("scripts/sql"); err != nil {
-		log.Printf("数据库迁移失败: %v", err)
+		pkgLogger.Error("数据库迁移失败: %v", err)
 		return nil, fmt.Errorf("数据库迁移失败: %v", err)
 	}
-	log.Printf("数据库迁移完成")
+	pkgLogger.Info("数据库迁移完成")
 
 	return db, nil
 }

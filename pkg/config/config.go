@@ -23,9 +23,10 @@ type Config struct {
 
 // ServerConfig 服务器配置
 type ServerConfig struct {
-	Host string `mapstructure:"host"`
-	Port int    `mapstructure:"port"`
-	Mode string `mapstructure:"mode"`
+	Host    string `mapstructure:"host"`
+	Port    int    `mapstructure:"port"`
+	Mode    string `mapstructure:"mode"`
+	GinMode string `mapstructure:"gin_mode"` // gin运行模式: debug, release, test
 }
 
 // DatabaseConfig 数据库配置
@@ -50,10 +51,12 @@ type JWTConfig struct {
 
 // LogConfig 日志配置
 type LogConfig struct {
-	Level  string `mapstructure:"level"`
-	Format string `mapstructure:"format"`
-	Output string `mapstructure:"output"`
-	File   string `mapstructure:"file"`
+	Level       string `mapstructure:"level"`
+	Format      string `mapstructure:"format"`
+	Output      string `mapstructure:"output"`
+	File        string `mapstructure:"file"`
+	SQLEnabled  bool   `mapstructure:"sql_enabled"`  // 是否启用SQL日志
+	SQLDetailed bool   `mapstructure:"sql_detailed"` // 是否显示详细SQL日志
 }
 
 // TencentConfig 腾讯云配置

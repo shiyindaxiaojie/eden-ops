@@ -39,10 +39,12 @@ func (l *GormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql 
 	elapsed := time.Since(begin)
 	sql, rows := fc()
 
-	// 使用全局日志器记录 SQL
-	logger.SQL(sql, elapsed, rows)
-
 	if err != nil {
+		// 有错误时，记录带错误标记的SQL日志
+		logger.SQLWithError(sql, elapsed, rows, true)
 		logger.Error("SQL执行错误: %v", err)
+	} else {
+		// 正常情况下记录SQL日志
+		logger.SQLWithError(sql, elapsed, rows, false)
 	}
 }

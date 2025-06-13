@@ -66,7 +66,7 @@
                 <el-link type="primary" @click="handleViewWorkloads(row, '')">总数 {{ row.workloadCount || 0 }}</el-link>
               </div>
               <div>
-                <el-link :type="(row.workloadRunning || 0) > 0 ? 'success' : 'info'" @click="handleViewWorkloads(row, 'gt0')">运行 {{ row.workloadRunning || 0 }}</el-link>
+                <el-link :type="(row.workloadRunning || 0) > 0 ? 'success' : 'info'" @click="handleViewWorkloads(row, 'gt0')">在线 {{ row.workloadRunning || 0 }}</el-link>
               </div>
               <div>
                 <el-link :type="(row.workloadIdle || 0) > 0 ? 'danger' : 'info'" @click="handleViewWorkloads(row, 'eq0')">闲置 {{ row.workloadIdle || 0 }}</el-link>
@@ -96,7 +96,7 @@
                 <el-link type="primary" @click="handleViewNodes(row, '')">总数 {{ row.nodeTotal || 0 }}</el-link>
               </div>
               <div>
-                <el-link :type="(row.nodeRunning || 0) > 0 ? 'success' : 'info'" @click="handleViewNodes(row, 'Ready')">运行 {{ row.nodeRunning || 0 }}</el-link>
+                <el-link :type="(row.nodeRunning || 0) > 0 ? 'success' : 'info'" @click="handleViewNodes(row, 'Ready')">就绪 {{ row.nodeRunning || 0 }}</el-link>
               </div>
               <div>
                 <el-link :type="(row.nodeError || 0) > 0 ? 'danger' : 'info'" @click="handleViewNodes(row, 'NotReady')">异常 {{ row.nodeError || 0 }}</el-link>

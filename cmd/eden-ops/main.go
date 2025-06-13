@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 )
 
 // 获取本机IP地址
@@ -194,12 +193,8 @@ func main() {
 	k8sNodeService := service.NewK8sNodeService(k8sNodeRepo)
 	k8sConfigService := service.NewK8sConfigService(k8sConfigRepo, k8sWorkloadService, k8sWorkloadRepo, k8sNamespaceRepo, k8sPodService, k8sNodeService)
 
-	// 创建日志记录器
-	logrusLogger := logrus.New()
-	logrusLogger.SetFormatter(&logger.CustomFormatter{})
-
 	// 启动K8s同步任务
-	k8sSyncTask := task.NewK8sSyncTask(db, k8sConfigService, logrusLogger)
+	k8sSyncTask := task.NewK8sSyncTask(db, k8sConfigService)
 
 	syncCtx, syncCancel := context.WithCancel(context.Background())
 	defer syncCancel()
@@ -218,7 +213,7 @@ func main() {
 	cloudAccountHandler := handler.NewCloudAccountHandler(cloudAccountService)
 	cloudProviderHandler := handler.NewCloudProviderHandler(cloudProviderService)
 	databaseConfigHandler := handler.NewDatabaseConfigHandler(databaseConfigService)
-	serverConfigHandler := handler.NewServerConfigHandler(serverConfigService, logrusLogger)
+	serverConfigHandler := handler.NewServerConfigHandler(serverConfigService)
 	k8sConfigHandler := handler.NewK8sConfigHandler(k8sConfigService)
 	k8sWorkloadHandler := handler.NewK8sWorkloadHandler(k8sWorkloadService)
 	k8sNamespaceHandler := handler.NewK8sNamespaceHandler(k8sNamespaceRepo)
@@ -228,6 +223,7 @@ func main() {
 	// 初始化路由
 	logger.Info("初始化路由...")
 	r := router.NewRouter(
+		cfg.Server.GinMode,
 		jwtAuth,
 		cloudAccountHandler,
 		cloudProviderHandler,

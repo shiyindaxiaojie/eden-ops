@@ -3,25 +3,22 @@ package handler
 import (
 	"eden-ops/internal/model"
 	"eden-ops/internal/service"
+	"eden-ops/pkg/logger"
 	"eden-ops/pkg/response"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
-	"go.uber.org/zap"
 )
 
 // ServerConfigHandler 服务器配置处理器
 type ServerConfigHandler struct {
 	serverConfigService service.ServerConfigService
-	logger              *logrus.Logger
 }
 
 // NewServerConfigHandler 创建服务器配置处理器
-func NewServerConfigHandler(serverConfigService service.ServerConfigService, logger *logrus.Logger) *ServerConfigHandler {
+func NewServerConfigHandler(serverConfigService service.ServerConfigService) *ServerConfigHandler {
 	return &ServerConfigHandler{
 		serverConfigService: serverConfigService,
-		logger:              logger,
 	}
 }
 
@@ -89,7 +86,7 @@ func (h *ServerConfigHandler) Update(c *gin.Context) {
 
 	config.ID = uint(id)
 	if err := h.serverConfigService.Update(&config); err != nil {
-		h.logger.Error("更新服务器配置失败", zap.Error(err))
+		logger.Error("更新服务器配置失败: %v", err)
 		response.InternalServerError(c, "更新服务器配置失败")
 		return
 	}
@@ -106,7 +103,7 @@ func (h *ServerConfigHandler) Delete(c *gin.Context) {
 	}
 
 	if err := h.serverConfigService.Delete(uint(id)); err != nil {
-		h.logger.Error("删除服务器配置失败", zap.Error(err))
+		logger.Error("删除服务器配置失败: %v", err)
 		response.InternalServerError(c, "删除服务器配置失败")
 		return
 	}
@@ -123,7 +120,7 @@ func (h *ServerConfigHandler) TestConnection(c *gin.Context) {
 	}
 
 	if err := h.serverConfigService.TestConnection(&config); err != nil {
-		h.logger.Error("测试服务器连接失败", zap.Error(err))
+		logger.Error("测试服务器连接失败: %v", err)
 		response.InternalServerError(c, "测试服务器连接失败")
 		return
 	}

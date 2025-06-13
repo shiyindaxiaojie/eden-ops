@@ -11,6 +11,7 @@ import (
 
 // NewRouter 创建路由
 func NewRouter(
+	ginMode string,
 	jwtAuth *auth.JWTAuth,
 	cloudAccountHandler *handler.CloudAccountHandler,
 	cloudProviderHandler *handler.CloudProviderHandler,
@@ -26,8 +27,11 @@ func NewRouter(
 	menuHandler *handler.MenuHandler,
 	authHandler *handler.AuthHandler,
 ) *gin.Engine {
-	// 使用自定义Logger替代默认Logger
-	gin.SetMode(gin.DebugMode) // 临时改为调试模式以获取更多日志
+	// 设置GIN模式
+	if ginMode == "" {
+		ginMode = gin.ReleaseMode // 默认为release模式
+	}
+	gin.SetMode(ginMode)
 	r := gin.New()
 
 	// 自定义恢复中间件，记录panic信息

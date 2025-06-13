@@ -66,7 +66,7 @@ func (j *JWTAuth) ParseToken(tokenString string) (*CustomClaims, error) {
 	}
 
 	if claims, ok := token.Claims.(*CustomClaims); ok && token.Valid {
-		log.Printf("解析token成功: userID=%d, username=%s", claims.UserID, claims.Username)
+		// log.Printf("解析token成功: userID=%d, username=%s", claims.UserID, claims.Username)
 		return claims, nil
 	}
 

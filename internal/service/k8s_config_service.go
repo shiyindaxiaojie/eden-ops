@@ -5,6 +5,7 @@ import (
 	"eden-ops/internal/model"
 	"eden-ops/internal/repository"
 	"eden-ops/internal/utils"
+	"eden-ops/pkg/logger"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -235,6 +236,13 @@ func (s *k8sConfigService) updateClusterInfo(config *model.K8sConfig) error {
 
 // SyncCluster 同步集群信息
 func (s *k8sConfigService) SyncCluster(id int64) error {
+	// 统计同步数据
+	var syncStats struct {
+		workloads  int
+		pods       int
+		nodes      int
+		namespaces int
+	}
 	// 获取集群配置
 	config, err := s.repo.Get(id)
 	if err != nil {
@@ -290,6 +298,7 @@ func (s *k8sConfigService) SyncCluster(id int64) error {
 	if err != nil {
 		return fmt.Errorf("failed to get workloads: %v", err)
 	}
+	syncStats.workloads = len(workloads)
 
 	// 同步工作负载到数据库
 	if err := s.workloadService.SyncWorkloads(id, workloads); err != nil {
@@ -301,6 +310,7 @@ func (s *k8sConfigService) SyncCluster(id int64) error {
 	if err != nil {
 		return fmt.Errorf("failed to get pods: %v", err)
 	}
+	syncStats.pods = len(pods)
 
 	// 同步Pod到数据库
 	if err := s.podService.SyncPods(id, pods); err != nil {
@@ -312,6 +322,7 @@ func (s *k8sConfigService) SyncCluster(id int64) error {
 	if err != nil {
 		return fmt.Errorf("failed to get nodes: %v", err)
 	}
+	syncStats.nodes = len(nodes)
 
 	// 同步节点到数据库
 	if err := s.nodeService.BatchCreateOrUpdate(nodes); err != nil {
@@ -322,6 +333,12 @@ func (s *k8sConfigService) SyncCluster(id int64) error {
 	if err := s.syncNamespaces(id, workloads); err != nil {
 		return fmt.Errorf("failed to sync namespaces: %v", err)
 	}
+	// 统计命名空间数量
+	namespaceCount := make(map[string]int)
+	for _, workload := range workloads {
+		namespaceCount[workload.Namespace]++
+	}
+	syncStats.namespaces = len(namespaceCount)
 
 	// 计算统计数据
 	if err := s.calculateStatistics(config, workloads, nodes); err != nil {
@@ -332,6 +349,10 @@ func (s *k8sConfigService) SyncCluster(id int64) error {
 	if err := s.repo.Update(config); err != nil {
 		return fmt.Errorf("failed to update statistics: %v", err)
 	}
+
+	// 输出同步统计信息
+	logger.Info("集群 %s 同步完成: 工作负载 %d 个, Pod %d 个, 节点 %d 个, 命名空间 %d 个",
+		config.Name, syncStats.workloads, syncStats.pods, syncStats.nodes, syncStats.namespaces)
 
 	return nil
 }
@@ -556,19 +577,25 @@ func (s *k8sConfigService) syncNamespaces(configID int64, workloads []model.K8sW
 		namespaceCount[workload.Namespace]++
 	}
 
-	// 删除旧的命名空间记录
+	// 先删除旧的命名空间记录
 	if err := s.namespaceRepository.DeleteByConfigID(configID); err != nil {
 		return fmt.Errorf("failed to delete old namespaces: %v", err)
 	}
 
-	// 创建新的命名空间记录
+	// 批量创建新的命名空间记录
 	for namespace, count := range namespaceCount {
 		nsRecord := &model.K8sNamespace{
 			ConfigID:      configID,
 			Namespace:     namespace,
 			WorkloadCount: count,
 		}
+		// 使用CreateOrUpdate方法，它内部已经处理了重复键问题
 		if err := s.namespaceRepository.CreateOrUpdate(nsRecord); err != nil {
+			// 如果是重复键错误，记录警告但不中断流程
+			if strings.Contains(err.Error(), "Duplicate entry") {
+				fmt.Printf("警告: 命名空间 %s 已存在，跳过创建\n", namespace)
+				continue
+			}
 			return fmt.Errorf("failed to create/update namespace %s: %v", namespace, err)
 		}
 	}
