@@ -21,7 +21,7 @@ export function createCloudAccount(data: any) {
 // 获取云账号详情
 export function getCloudAccountDetail(id: number) {
   return request({
-    url: `/api/infrastructure/cloud-accounts/${id}`,
+    url: `/api/v1/infrastructure/cloud-accounts/${id}`,
     method: 'get'
   })
 }
@@ -29,7 +29,7 @@ export function getCloudAccountDetail(id: number) {
 // 更新云账号
 export function updateCloudAccount(id: number, data: any) {
   return request({
-    url: `/api/infrastructure/cloud-accounts/${id}`,
+    url: `/api/v1/infrastructure/cloud-accounts/${id}`,
     method: 'put',
     data
   })
@@ -38,7 +38,7 @@ export function updateCloudAccount(id: number, data: any) {
 // 删除云账号
 export function deleteCloudAccount(id: number) {
   return request({
-    url: `/api/infrastructure/cloud-accounts/${id}`,
+    url: `/api/v1/infrastructure/cloud-accounts/${id}`,
     method: 'delete'
   })
-} 
+}

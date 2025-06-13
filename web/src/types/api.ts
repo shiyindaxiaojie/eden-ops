@@ -77,14 +77,13 @@ export interface IPLocation {
 export interface CloudAccount {
   id: number
   name: string
-  provider: string
-  access_key: string
-  secret_key: string
-  region: string
-  status: string
-  remark: string
-  created_at: string
-  updated_at: string
+  providerId?: number
+  accessKey: string
+  secretKey: string
+  description?: string
+  status: number
+  createdAt: string
+  updatedAt: string
 }
 
 // 数据库配置接口

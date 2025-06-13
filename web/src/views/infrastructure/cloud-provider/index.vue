@@ -3,15 +3,10 @@
     <el-card class="box-card">
       <template #header>
         <div class="card-header">
-          <span>云厂商管理</span>
-          <div>
-            <el-button
-              type="primary"
-              @click="handleAdd"
-            >
-              新增
-            </el-button>
+          <div class="header-left">
+            <h2 class="title">云厂商管理</h2>
           </div>
+          <el-button type="primary" @click="handleAdd">新增云厂商</el-button>
         </div>
       </template>
 

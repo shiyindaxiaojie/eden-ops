@@ -21,6 +21,16 @@
             style="min-width: 240px"
           />
         </el-form-item>
+        <el-form-item label="云厂商">
+          <el-select v-model="queryParams.providerId" placeholder="请选择云厂商" clearable style="min-width: 240px;">
+            <el-option
+              v-for="item in providerOptions"
+              :key="item.id"
+              :label="item.name"
+              :value="item.id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="服务器类型">
           <el-select
             v-model="queryParams.type"
@@ -52,6 +62,11 @@
       <el-table :data="serverList" style="width: 100%" v-loading="loading">
         <el-table-column type="index" label="序号" width="60" />
         <el-table-column prop="name" label="配置名称" min-width="120" />
+        <el-table-column prop="providerName" label="云厂商" min-width="120">
+          <template #default="{ row }">
+            {{ row.providerName || '-' }}
+          </template>
+        </el-table-column>
         <el-table-column prop="type" label="服务器类型" min-width="120">
           <template #default="{ row }">
             <el-tag>{{ row.type === 'linux' ? 'Linux' : 'Windows' }}</el-tag>
@@ -104,6 +119,16 @@
       >
         <el-form-item label="配置名称" prop="name">
             <el-input v-model="form.name" placeholder="请输入配置名称" />
+          </el-form-item>
+          <el-form-item label="云厂商" prop="providerId">
+            <el-select v-model="form.providerId" placeholder="请选择云厂商" clearable style="width: 100%;">
+              <el-option
+                v-for="item in providerOptions"
+                :key="item.id"
+                :label="item.name"
+                :value="item.id"
+              />
+            </el-select>
           </el-form-item>
           <el-form-item label="服务器类型" prop="type">
             <el-select
@@ -167,10 +192,12 @@ import {
   deleteServerConfig,
   testServerConfig
 } from '@/api/server-config'
+import { getCloudProviderList } from '@/api/infrastructure/cloud-provider'
 import type { ServerConfig } from '@/types/api'
 
 interface QueryParams {
   name: string
+  providerId: number | null
   type: string
   status: string
   pageNum: number
@@ -186,11 +213,13 @@ const total = ref(0)
 const serverList = ref<ServerConfig[]>([])
 const dialogVisible = ref(false)
 const dialogTitle = ref('')
+const providerOptions = ref([])
 
 const formRef = ref<FormInstance>()
 
 const queryParams = reactive<QueryParams>({
   name: '',
+  providerId: null,
   type: '',
   status: '',
   pageNum: 1,
@@ -198,12 +227,13 @@ const queryParams = reactive<QueryParams>({
 })
 
 const form = reactive<ServerForm>({
-        name: '',
+  name: '',
+  providerId: null,
   type: 'linux',
-        host: '',
-        port: 22,
-        username: '',
-        password: '',
+  host: '',
+  port: 22,
+  username: '',
+  password: '',
   status: '1'
 })
 
@@ -229,6 +259,15 @@ const rules: FormRules = {
   ]
 }
 
+const getProviderOptions = async () => {
+  try {
+    const res = await getCloudProviderList({ pageSize: 100 })
+    providerOptions.value = res.data.list
+  } catch (error) {
+    console.error('Failed to fetch cloud providers:', error)
+  }
+}
+
 const handleQuery = async () => {
   loading.value = true
   try {
@@ -248,6 +287,7 @@ const handleQuery = async () => {
 
 const resetQuery = () => {
   queryParams.name = ''
+  queryParams.providerId = null
   queryParams.type = ''
   queryParams.status = ''
   queryParams.pageNum = 1
@@ -313,13 +353,14 @@ const resetForm = () => {
     formRef.value.resetFields()
   }
   Object.assign(form, {
-        id: undefined,
-        name: '',
+    id: undefined,
+    name: '',
+    providerId: null,
     type: 'linux',
-        host: '',
-        port: 22,
-        username: '',
-        password: '',
+    host: '',
+    port: 22,
+    username: '',
+    password: '',
     status: '1'
   })
 }
@@ -347,6 +388,7 @@ const submitForm = async () => {
 }
 
 onMounted(() => {
+  getProviderOptions()
   handleQuery()
 })
 </script>

@@ -4,7 +4,7 @@
       <template #header>
         <div class="card-header">
           <div class="header-left">
-            <h2 class="title">Kubernetes 集群管理</h2>
+            <h2 class="title">Kubernetes 集群</h2>
           </div>
           <el-button type="primary" @click="handleAdd">接入集群</el-button>
         </div>
@@ -49,8 +49,17 @@
             {{ row.providerName || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="version" label="版本" width="120" show-overflow-tooltip />
-        <el-table-column label="工作负载" width="150">
+        <el-table-column prop="status" label="同步开关" width="100">
+          <template #default="{ row }">
+            <el-switch
+              v-model="row.status"
+              :active-value="1"
+              :inactive-value="0"
+              @change="handleStatusChange(row)"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column label="工作负载" width="100">
           <template #default="{ row }">
             <div style="font-size: 12px; line-height: 1.4;">
               <div>
@@ -65,7 +74,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="Pod" width="120">
+        <el-table-column label="Pod" width="90">
           <template #default="{ row }">
             <div style="font-size: 12px; line-height: 1.4;">
               <div>
@@ -80,7 +89,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="节点" width="120">
+        <el-table-column label="节点" width="90">
           <template #default="{ row }">
             <div style="font-size: 12px; line-height: 1.4;">
               <div>
@@ -123,17 +132,8 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
+        <el-table-column prop="version" label="版本" width="120" show-overflow-tooltip />
         <el-table-column prop="description" label="描述" width="150" show-overflow-tooltip />
-        <el-table-column prop="status" label="同步开关" width="90">
-          <template #default="{ row }">
-            <el-switch
-              v-model="row.status"
-              :active-value="1"
-              :inactive-value="0"
-              @change="handleStatusChange(row)"
-            />
-          </template>
-        </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link @click="handleEdit(row)">编辑</el-button>
@@ -209,10 +209,13 @@
           />
         </el-form-item>
         <el-form-item label="状态" prop="status">
-          <el-radio-group v-model="form.status">
-            <el-radio :label="1">启用</el-radio>
-            <el-radio :label="0">禁用</el-radio>
-          </el-radio-group>
+          <el-switch
+            v-model="form.status"
+            :active-value="1"
+            :inactive-value="0"
+            active-text="启用"
+            inactive-text="禁用"
+          />
         </el-form-item>
         <el-form-item label="同步间隔" prop="syncInterval">
           <el-input-number

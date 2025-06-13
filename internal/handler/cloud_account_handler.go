@@ -26,8 +26,24 @@ func (h *CloudAccountHandler) List(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
 	name := c.DefaultQuery("name", "")
+	providerIDStr := c.DefaultQuery("providerId", "")
+	statusStr := c.DefaultQuery("status", "")
 
-	accounts, total, err := h.cloudAccountService.List(page, pageSize, name)
+	var providerID *int64
+	if providerIDStr != "" {
+		if pid, err := strconv.ParseInt(providerIDStr, 10, 64); err == nil {
+			providerID = &pid
+		}
+	}
+
+	var status *int
+	if statusStr != "" {
+		if s, err := strconv.Atoi(statusStr); err == nil {
+			status = &s
+		}
+	}
+
+	accounts, total, err := h.cloudAccountService.ListWithFilter(page, pageSize, name, providerID, status)
 	if err != nil {
 		response.Failed(c, err)
 		return

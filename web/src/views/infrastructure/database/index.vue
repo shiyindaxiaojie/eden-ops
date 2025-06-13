@@ -22,6 +22,21 @@
               @keyup.enter="handleFilter"
             />
           </el-form-item>
+          <el-form-item label="云厂商">
+            <el-select
+              v-model="listQuery.providerId"
+              placeholder="请选择云厂商"
+              clearable
+              class="filter-item"
+            >
+              <el-option
+                v-for="item in providerOptions"
+                :key="item.id"
+                :label="item.name"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
           <el-form-item label="数据库类型">
             <el-select
               v-model="listQuery.driver"
@@ -55,6 +70,11 @@
       >
         <el-table-column type="index" label="序号" width="60" align="center" />
         <el-table-column prop="name" label="配置名称" min-width="150" />
+        <el-table-column prop="providerName" label="云厂商" min-width="120">
+          <template #default="{ row }">
+            {{ row.providerName || '-' }}
+          </template>
+        </el-table-column>
         <el-table-column prop="driver" label="数据库类型" min-width="120">
           <template #default="{ row }">
             {{ getDriverLabel(row.driver) }}
@@ -113,6 +133,16 @@
         >
           <el-form-item label="配置名称" prop="name">
             <el-input v-model="temp.name" class="form-input" placeholder="请输入配置名称" />
+          </el-form-item>
+          <el-form-item label="云厂商" prop="providerId">
+            <el-select v-model="temp.providerId" class="form-input" placeholder="请选择云厂商">
+              <el-option
+                v-for="item in providerOptions"
+                :key="item.id"
+                :label="item.name"
+                :value="item.id"
+              />
+            </el-select>
           </el-form-item>
           <el-form-item label="数据库类型" prop="driver">
             <el-select v-model="temp.driver" class="form-input" placeholder="请选择数据库类型">
@@ -205,10 +235,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import { getDatabaseConfigs, createDatabaseConfig, updateDatabaseConfig, deleteDatabaseConfig } from '@/api/database-config'
+import { getCloudProviderList } from '@/api/infrastructure/cloud-provider'
 import type { DatabaseConfig } from '@/types/api'
 import waves from '@/directive/waves'
 
@@ -216,6 +247,7 @@ interface ListQuery {
   page: number
   limit: number
   name?: string
+  providerId?: number
   driver?: string
 }
 
@@ -228,10 +260,12 @@ const driverOptions = [
 const listLoading = ref(false)
 const list = ref<DatabaseConfig[]>([])
 const total = ref(0)
+const providerOptions = ref([])
 const listQuery = reactive<ListQuery>({
   page: 1,
   limit: 20,
   name: undefined,
+  providerId: undefined,
   driver: undefined
 })
 
@@ -246,6 +280,7 @@ const dataFormRef = ref<FormInstance>()
 const temp = reactive<Partial<DatabaseConfig>>({
   id: undefined,
   name: '',
+  providerId: undefined,
   driver: 'mysql',
   host: '',
   port: 3306,
@@ -274,6 +309,15 @@ const getDriverLabel = (value: string) => {
   return option ? option.label : value
 }
 
+const getProviderOptions = async () => {
+  try {
+    const res = await getCloudProviderList({ pageSize: 100 })
+    providerOptions.value = res.data.list
+  } catch (error) {
+    console.error('Failed to fetch cloud providers:', error)
+  }
+}
+
 const getList = async () => {
   listLoading.value = true
   try {
@@ -294,6 +338,7 @@ const handleFilter = () => {
 
 const resetQuery = () => {
   listQuery.name = undefined
+  listQuery.providerId = undefined
   listQuery.driver = undefined
   handleFilter()
 }
@@ -301,6 +346,7 @@ const resetQuery = () => {
 const resetTemp = () => {
   temp.id = undefined
   temp.name = ''
+  temp.providerId = undefined
   temp.driver = 'mysql'
   temp.host = ''
   temp.port = 3306
@@ -401,6 +447,7 @@ const handleTest = async (row: DatabaseConfig) => {
 }
 
 onMounted(() => {
+  getProviderOptions()
   getList()
 })
 </script>

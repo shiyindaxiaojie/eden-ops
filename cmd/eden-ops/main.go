@@ -200,6 +200,7 @@ func main() {
 
 	// 启动K8s同步任务
 	k8sSyncTask := task.NewK8sSyncTask(db, k8sConfigService, logrusLogger)
+
 	syncCtx, syncCancel := context.WithCancel(context.Background())
 	defer syncCancel()
 

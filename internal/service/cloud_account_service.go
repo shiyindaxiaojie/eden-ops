@@ -12,6 +12,7 @@ type CloudAccountService interface {
 	Delete(id uint) error
 	Get(id uint) (*model.CloudAccount, error)
 	List(page, pageSize int, name string) ([]*model.CloudAccount, int64, error)
+	ListWithFilter(page, pageSize int, name string, providerID *int64, status *int) ([]*model.CloudAccount, int64, error)
 	TestConnection(account *model.CloudAccount) error
 }
 
@@ -30,6 +31,21 @@ func NewCloudAccountService(repo *repository.CloudAccountRepository) CloudAccoun
 // List 获取云账号列表
 func (s *cloudAccountService) List(page, pageSize int, name string) ([]*model.CloudAccount, int64, error) {
 	total, accounts, err := s.repo.List(page, pageSize, name)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var result []*model.CloudAccount
+	for i := range accounts {
+		result = append(result, &accounts[i])
+	}
+
+	return result, total, nil
+}
+
+// ListWithFilter 获取云账号列表（支持过滤）
+func (s *cloudAccountService) ListWithFilter(page, pageSize int, name string, providerID *int64, status *int) ([]*model.CloudAccount, int64, error) {
+	total, accounts, err := s.repo.ListWithFilter(page, pageSize, name, providerID, status)
 	if err != nil {
 		return nil, 0, err
 	}

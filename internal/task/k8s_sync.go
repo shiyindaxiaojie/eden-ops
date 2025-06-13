@@ -38,8 +38,8 @@ func NewK8sSyncTask(db *gorm.DB, service service.K8sConfigService, logger *logru
 func (t *K8sSyncTask) Start(ctx context.Context) error {
 	t.logger.Infof("启动 Kubernetes 同步任务")
 
-	// 启动定时检查任务，每分钟检查一次配置变化（6字段格式：秒 分 时 日 月 周）
-	_, err := t.cron.AddFunc("0 * * * * *", func() {
+	// 启动定时检查任务，每30秒检查一次配置变化（6字段格式：秒 分 时 日 月 周）
+	_, err := t.cron.AddFunc("*/30 * * * * *", func() {
 		t.refreshSyncJobs()
 	})
 
@@ -73,6 +73,11 @@ func (t *K8sSyncTask) Stop() {
 	if t.cron != nil {
 		t.cron.Stop()
 	}
+}
+
+// RefreshJobs 立即刷新同步任务（供外部调用）
+func (t *K8sSyncTask) RefreshJobs() {
+	t.refreshSyncJobs()
 }
 
 // refreshSyncJobs 刷新同步任务
