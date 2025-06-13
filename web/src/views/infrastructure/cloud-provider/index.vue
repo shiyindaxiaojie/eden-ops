@@ -17,7 +17,7 @@
 
       <div class="description-box">
         <el-alert
-          title="云厂商管理用于Kubernetes集群关联，支持阿里云、腾讯云、华为云等主流云厂商"
+          title="云厂商管理用于 Kubernetes 集群关联，支持阿里云、腾讯云、华为云等主流云厂商"
           type="info"
           :closable="false"
           show-icon
@@ -30,7 +30,7 @@
             v-model="queryParams.name"
             placeholder="请输入厂商名称"
             clearable
-            style="min-width: 240px"
+            style="min-width: 150px"
           />
         </el-form-item>
         <el-form-item label="状态">
@@ -38,7 +38,7 @@
             v-model="queryParams.status"
             placeholder="请选择状态"
             clearable
-            style="min-width: 240px"
+            style="min-width: 150px"
           >
             <el-option label="启用" :value="1" />
             <el-option label="禁用" :value="0" />
@@ -55,6 +55,7 @@
         :data="tableData"
         style="width: 100%"
       >
+        <el-table-column type="index" label="序号" width="60" />
         <el-table-column
           prop="name"
           label="云厂商名称"
@@ -123,10 +124,16 @@
         v-if="total > 0"
         :current-page="queryParams.page"
         :page-size="queryParams.pageSize"
+        :page-sizes="[10, 20, 50, 100]"
         :total="total"
         class="pagination"
         background
-        layout="total, prev, pager, next"
+        layout="total, sizes, prev, pager, next, jumper"
+        :total-text="`共 ${total} 条`"
+        :page-size-text="'条/页'"
+        :goto-text="'前往'"
+        :page-text="'页'"
+        @size-change="handleSizeChange"
         @current-change="handlePageChange"
       />
     </el-card>
@@ -255,6 +262,12 @@ const resetQuery = () => {
 
 const handlePageChange = (page: number) => {
   queryParams.value.page = page
+  getList()
+}
+
+const handleSizeChange = (size: number) => {
+  queryParams.value.pageSize = size
+  queryParams.value.page = 1
   getList()
 }
 

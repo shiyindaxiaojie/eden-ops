@@ -91,3 +91,19 @@ export function getPodDetail(id: number) {
     method: 'get'
   })
 }
+
+// 节点相关API
+export function getK8sNodes(params: any) {
+  return request({
+    url: '/api/v1/k8s-nodes',
+    method: 'get',
+    params
+  })
+}
+
+export function getK8sNodeDetail(id: number) {
+  return request({
+    url: `/api/v1/k8s-nodes/${id}`,
+    method: 'get'
+  })
+}

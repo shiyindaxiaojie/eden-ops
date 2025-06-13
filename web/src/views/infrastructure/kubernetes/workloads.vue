@@ -127,10 +127,16 @@
         v-if="total > 0"
         :current-page="queryParams.page"
         :page-size="queryParams.pageSize"
+        :page-sizes="[10, 20, 50, 100]"
         :total="total"
         class="pagination"
         background
-        layout="total, prev, pager, next"
+        layout="total, sizes, prev, pager, next, jumper"
+        :total-text="`共 ${total} 条`"
+        :page-size-text="'条/页'"
+        :goto-text="'前往'"
+        :page-text="'页'"
+        @size-change="handleSizeChange"
         @current-change="handlePageChange"
       />
     </el-card>
@@ -162,6 +168,7 @@ const queryParams = ref({
   namespace: '',
   workloadType: '',
   status: '',
+  replicas: '', // 新增replicas过滤参数
   sortBy: '',
   sortOrder: 'asc',
   startTime: '',
@@ -214,6 +221,7 @@ const resetQuery = () => {
     namespace: '',
     workloadType: '',
     status: '',
+    replicas: '',
     sortBy: '',
     sortOrder: 'asc',
     startTime: '',
@@ -248,6 +256,12 @@ const handleDateChange = (dates: string[]) => {
 
 const handlePageChange = (page: number) => {
   queryParams.value.page = page
+  getList()
+}
+
+const handleSizeChange = (size: number) => {
+  queryParams.value.pageSize = size
+  queryParams.value.page = 1
   getList()
 }
 
@@ -308,6 +322,18 @@ onMounted(() => {
   configId.value = route.query.configId as string
   clusterName.value = route.query.clusterName as string || '未知集群'
   queryParams.value.configId = configId.value
+
+  // 从URL参数获取状态过滤
+  const statusParam = route.query.status as string
+  if (statusParam) {
+    queryParams.value.status = statusParam
+  }
+
+  // 从URL参数获取replicas过滤
+  const replicasParam = route.query.replicas as string
+  if (replicasParam) {
+    queryParams.value.replicas = replicasParam
+  }
 
   if (!configId.value) {
     ElMessage.error('缺少集群配置ID')

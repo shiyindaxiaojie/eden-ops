@@ -12,7 +12,7 @@ type K8sWorkloadRepository interface {
 	Delete(id int64) error
 	Get(id int64) (*model.K8sWorkload, error)
 	List(configID int64, page, pageSize int) (int64, []model.K8sWorkload, error)
-	ListWithFilter(page, pageSize int, name, namespace, workloadType, status, sortBy, sortOrder string, startTime, endTime *string, configId *int64) (int64, []model.K8sWorkload, error)
+	ListWithFilter(page, pageSize int, name, namespace, workloadType, status, replicas, sortBy, sortOrder string, startTime, endTime *string, configId *int64) (int64, []model.K8sWorkload, error)
 	ListByConfigID(configID int64) ([]model.K8sWorkload, error)
 	DeleteByConfigID(configID int64) error
 	BatchCreate(workloads []model.K8sWorkload) error
@@ -75,7 +75,7 @@ func (r *k8sWorkloadRepository) List(configID int64, page, pageSize int) (int64,
 }
 
 // ListWithFilter 获取工作负载列表（支持筛选）
-func (r *k8sWorkloadRepository) ListWithFilter(page, pageSize int, name, namespace, workloadType, status, sortBy, sortOrder string, startTime, endTime *string, configId *int64) (int64, []model.K8sWorkload, error) {
+func (r *k8sWorkloadRepository) ListWithFilter(page, pageSize int, name, namespace, workloadType, status, replicas, sortBy, sortOrder string, startTime, endTime *string, configId *int64) (int64, []model.K8sWorkload, error) {
 	var workloads []model.K8sWorkload
 	var total int64
 
@@ -95,7 +95,27 @@ func (r *k8sWorkloadRepository) ListWithFilter(page, pageSize int, name, namespa
 		query = query.Where("kind = ?", workloadType)
 	}
 	if status != "" {
-		query = query.Where("status = ?", status)
+		if status == "Running" {
+			// 运行中：replicas 大于 0
+			query = query.Where("replicas > 0")
+		} else if status == "Other" {
+			// 闲置：replicas 等于 0
+			query = query.Where("replicas = 0")
+		} else {
+			// 其他状态按原来的逻辑
+			query = query.Where("status = ?", status)
+		}
+	}
+
+	// replicas过滤
+	if replicas != "" {
+		if replicas == "gt0" {
+			// 大于0
+			query = query.Where("replicas > 0")
+		} else if replicas == "eq0" {
+			// 等于0
+			query = query.Where("replicas = 0")
+		}
 	}
 
 	// 时间范围筛选

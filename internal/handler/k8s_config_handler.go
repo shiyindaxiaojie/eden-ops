@@ -41,7 +41,9 @@ func (h *K8sConfigHandler) List(c *gin.Context) {
 		}
 	}
 
-	configs, total, err := h.k8sConfigService.List(page, pageSize, name, status, providerId)
+	clusterID := c.Query("clusterID")
+
+	configs, total, err := h.k8sConfigService.List(page, pageSize, name, status, providerId, clusterID)
 	if err != nil {
 		response.Failed(c, err)
 		return
@@ -70,7 +72,9 @@ func (h *K8sConfigHandler) ListWithWorkloadCount(c *gin.Context) {
 		}
 	}
 
-	configs, total, err := h.k8sConfigService.ListWithWorkloadCount(page, pageSize, name, status, providerId)
+	clusterID := c.Query("clusterID")
+
+	configs, total, err := h.k8sConfigService.ListWithWorkloadCount(page, pageSize, name, status, providerId, clusterID)
 	if err != nil {
 		response.Failed(c, err)
 		return

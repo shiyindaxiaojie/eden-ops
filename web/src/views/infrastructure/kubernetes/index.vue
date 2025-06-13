@@ -12,10 +12,13 @@
 
       <el-form :model="queryParams" ref="queryForm" :inline="true" class="search-form">
         <el-form-item label="集群名称" prop="name">
-          <el-input v-model="queryParams.name" placeholder="请输入集群名称" clearable />
+          <el-input v-model="queryParams.name" placeholder="请输入集群名称" clearable style="min-width: 120px;" />
+        </el-form-item>
+        <el-form-item label="集群ID" prop="clusterID">
+          <el-input v-model="queryParams.clusterID" placeholder="请输入集群ID" clearable style="min-width: 120px;" />
         </el-form-item>
         <el-form-item label="云厂商" prop="providerId">
-          <el-select v-model="queryParams.providerId" placeholder="请选择云厂商" clearable style="min-width: 200px;">
+          <el-select v-model="queryParams.providerId" placeholder="请选择云厂商" clearable style="min-width: 150px;">
             <el-option
               v-for="item in providerOptions"
               :key="item.id"
@@ -39,41 +42,60 @@
 
       <el-table :data="clusterList" v-loading="loading" style="width: 100%; min-width: 1200px;">
         <el-table-column type="index" label="序号" width="60" />
-        <el-table-column prop="name" label="集群名称" width="130" show-overflow-tooltip />
+        <el-table-column prop="name" label="集群名称" width="120" show-overflow-tooltip />
+        <el-table-column prop="clusterID" label="集群ID" width="120" show-overflow-tooltip />
         <el-table-column prop="providerName" label="云厂商" width="90" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.providerName || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="description" label="描述" width="150" show-overflow-tooltip />
-        <el-table-column prop="context" label="Context" width="90" show-overflow-tooltip />
         <el-table-column prop="version" label="版本" width="120" show-overflow-tooltip />
-        <el-table-column label="工作负载" width="100" align="center">
+        <el-table-column label="工作负载" width="150">
           <template #default="{ row }">
-            <el-button
-              type="primary"
-              link
-              @click="handleViewWorkloads(row)"
-              style="font-weight: bold;"
-            >
-              {{ row.workloadCount || 0 }}
-            </el-button>
+            <div style="font-size: 12px; line-height: 1.4;">
+              <div>
+                <el-link type="primary" @click="handleViewWorkloads(row, '')">总数 {{ row.workloadCount || 0 }}</el-link>
+              </div>
+              <div>
+                <el-link :type="(row.workloadRunning || 0) > 0 ? 'success' : 'info'" @click="handleViewWorkloads(row, 'gt0')">运行 {{ row.workloadRunning || 0 }}</el-link>
+              </div>
+              <div>
+                <el-link :type="(row.workloadIdle || 0) > 0 ? 'danger' : 'info'" @click="handleViewWorkloads(row, 'eq0')">闲置 {{ row.workloadIdle || 0 }}</el-link>
+              </div>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column label="Pod" width="70" align="center">
+        <el-table-column label="Pod" width="120">
           <template #default="{ row }">
-            <el-button
-              type="primary"
-              link
-              @click="handleViewPods(row)"
-              style="font-weight: bold;"
-            >
-              {{ row.podCount || 0 }}
-            </el-button>
+            <div style="font-size: 12px; line-height: 1.4;">
+              <div>
+                <el-link type="primary" @click="handleViewPods(row, '')">总数 {{ row.podTotal || 0 }}</el-link>
+              </div>
+              <div>
+                <el-link :type="(row.podRunning || 0) > 0 ? 'success' : 'info'" @click="handleViewPods(row, 'Running')">运行 {{ row.podRunning || 0 }}</el-link>
+              </div>
+              <div>
+                <el-link :type="(row.podError || 0) > 0 ? 'danger' : 'info'" @click="handleViewPods(row, 'Error')">异常 {{ row.podError || 0 }}</el-link>
+              </div>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column prop="nodeCount" label="节点" width="70" align="center" />
-        <el-table-column label="CPU" width="120" align="center">
+        <el-table-column label="节点" width="120">
+          <template #default="{ row }">
+            <div style="font-size: 12px; line-height: 1.4;">
+              <div>
+                <el-link type="primary" @click="handleViewNodes(row, '')">总数 {{ row.nodeTotal || 0 }}</el-link>
+              </div>
+              <div>
+                <el-link :type="(row.nodeRunning || 0) > 0 ? 'success' : 'info'" @click="handleViewNodes(row, 'Ready')">运行 {{ row.nodeRunning || 0 }}</el-link>
+              </div>
+              <div>
+                <el-link :type="(row.nodeError || 0) > 0 ? 'danger' : 'info'" @click="handleViewNodes(row, 'NotReady')">异常 {{ row.nodeError || 0 }}</el-link>
+              </div>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="CPU" width="120">
           <template #default="{ row }">
             <div v-if="row.cpuUsed && row.cpuTotal">
               <el-progress
@@ -87,7 +109,7 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="内存" width="120" align="center">
+        <el-table-column label="内存" width="120">
           <template #default="{ row }">
             <div v-if="row.memoryUsed && row.memoryTotal">
               <el-progress
@@ -101,7 +123,8 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="同步开关" width="90" align="center">
+        <el-table-column prop="description" label="描述" width="150" show-overflow-tooltip />
+        <el-table-column prop="status" label="同步开关" width="90">
           <template #default="{ row }">
             <el-switch
               v-model="row.status"
@@ -123,10 +146,16 @@
         v-if="total > 0"
         :current-page="queryParams.page"
         :page-size="queryParams.pageSize"
+        :page-sizes="[10, 20, 50, 100]"
         :total="total"
         class="pagination"
         background
-        layout="total, prev, pager, next"
+        layout="total, sizes, prev, pager, next, jumper"
+        :total-text="`共 ${total} 条`"
+        :page-size-text="'条/页'"
+        :goto-text="'前往'"
+        :page-text="'页'"
+        @size-change="handleSizeChange"
         @current-change="handlePageChange"
       />
     </el-card>
@@ -145,6 +174,9 @@
         <el-form-item label="集群名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入集群名称" />
         </el-form-item>
+        <el-form-item label="集群ID" v-if="form.clusterID">
+          <el-input v-model="form.clusterID" readonly placeholder="从Kubeconfig自动解析" />
+        </el-form-item>
         <el-form-item label="云厂商" prop="providerId">
           <el-select v-model="form.providerId" placeholder="请选择云厂商" clearable>
             <el-option
@@ -161,6 +193,7 @@
             type="textarea"
             :rows="8"
             placeholder="请输入Kubeconfig配置"
+            @input="handleKubeconfigChange"
           />
           <div style="margin-top: 8px;">
             <el-button type="primary" size="small" @click="handleTestConnection" :loading="testLoading">
@@ -226,6 +259,7 @@ const queryParams = ref({
   pageSize: 10,
   name: '',
   providerId: null,
+  clusterID: '',
   status: ''
 })
 
@@ -234,6 +268,7 @@ const form = ref({
   name: '',
   providerId: null,
   kubeconfig: '',
+  clusterID: '',
   description: '',
   status: 1,
   syncInterval: 30
@@ -281,6 +316,7 @@ const resetQuery = () => {
     pageSize: 10,
     name: '',
     providerId: null,
+    clusterID: '',
     status: ''
   }
   getList()
@@ -291,6 +327,12 @@ const handlePageChange = (page: number) => {
   getList()
 }
 
+const handleSizeChange = (size: number) => {
+  queryParams.value.pageSize = size
+  queryParams.value.page = 1
+  getList()
+}
+
 const handleAdd = () => {
   dialogTitle.value = '接入集群'
   form.value = {
@@ -298,6 +340,7 @@ const handleAdd = () => {
     name: '',
     providerId: null,
     kubeconfig: '',
+    clusterID: '',
     description: '',
     status: 1,
     syncInterval: 30
@@ -315,25 +358,48 @@ const handleEdit = (row: any) => {
   dialogVisible.value = true
 }
 
-const handleViewWorkloads = (row: any) => {
-  // 路由到工作负载页面，传递集群ID
+const handleViewWorkloads = (row: any, replicasFilter: string = '') => {
+  // 路由到工作负载页面，传递集群ID和replicas过滤
+  const query: any = {
+    configId: row.id,
+    clusterName: row.name
+  }
+  if (replicasFilter) {
+    query.replicas = replicasFilter
+  }
   router.push({
     path: '/infrastructure/kubernetes/workloads',
-    query: {
-      configId: row.id,
-      clusterName: row.name
-    }
+    query
   })
 }
 
-const handleViewPods = (row: any) => {
-  // 路由到Pod页面，传递集群ID
+const handleViewPods = (row: any, status: string = '') => {
+  // 路由到Pod页面，传递集群ID和状态过滤
+  const query: any = {
+    configId: row.id,
+    clusterName: row.name
+  }
+  if (status) {
+    query.status = status
+  }
   router.push({
     path: '/infrastructure/kubernetes/pods',
-    query: {
-      configId: row.id,
-      clusterName: row.name
-    }
+    query
+  })
+}
+
+const handleViewNodes = (row: any, status: string = '') => {
+  // 路由到节点页面，传递集群ID和状态过滤
+  const query: any = {
+    configId: row.id,
+    clusterName: row.name
+  }
+  if (status) {
+    query.status = status
+  }
+  router.push({
+    path: '/infrastructure/kubernetes/nodes',
+    query
   })
 }
 
@@ -388,6 +454,64 @@ const handleStatusChange = async (row: any) => {
     ElMessage.error('状态更新失败')
     // 恢复原状态
     row.status = row.status === 1 ? 0 : 1
+  }
+}
+
+const handleKubeconfigChange = () => {
+  // 尝试解析kubeconfig获取集群ID
+  if (form.value.kubeconfig) {
+    try {
+      const config = parseKubeconfig(form.value.kubeconfig)
+      if (config && config.currentContext) {
+        // 查找当前上下文对应的集群
+        const context = config.contexts?.find(ctx => ctx.name === config.currentContext)
+        if (context && context.context && context.context.cluster) {
+          form.value.clusterID = context.context.cluster
+        }
+      }
+    } catch (error) {
+      // 解析失败时清空集群ID
+      form.value.clusterID = ''
+    }
+  } else {
+    form.value.clusterID = ''
+  }
+}
+
+const parseKubeconfig = (kubeconfigText: string) => {
+  try {
+    // 简单的YAML解析，实际项目中建议使用专门的YAML解析库
+    const lines = kubeconfigText.split('\n')
+    const config: any = {}
+    let currentSection = ''
+    let currentItem: any = {}
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (trimmed.startsWith('current-context:')) {
+        config.currentContext = trimmed.split(':')[1].trim()
+      } else if (trimmed === 'contexts:') {
+        currentSection = 'contexts'
+        config.contexts = []
+      } else if (currentSection === 'contexts' && trimmed.startsWith('- context:')) {
+        if (Object.keys(currentItem).length > 0) {
+          config.contexts.push(currentItem)
+        }
+        currentItem = { context: {} }
+      } else if (currentSection === 'contexts' && trimmed.startsWith('cluster:')) {
+        currentItem.context.cluster = trimmed.split(':')[1].trim()
+      } else if (currentSection === 'contexts' && trimmed.startsWith('name:')) {
+        currentItem.name = trimmed.split(':')[1].trim()
+      }
+    }
+
+    if (currentSection === 'contexts' && Object.keys(currentItem).length > 0) {
+      config.contexts.push(currentItem)
+    }
+
+    return config
+  } catch (error) {
+    return null
   }
 }
 

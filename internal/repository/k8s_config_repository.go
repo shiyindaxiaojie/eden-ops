@@ -18,7 +18,8 @@ type K8sConfigRepository interface {
 	Update(config *model.K8sConfig) error
 	Delete(id int64) error
 	Get(id int64) (*model.K8sConfig, error)
-	List(page, pageSize int, name string, status *int, providerId *int64) (int64, []model.K8sConfig, error)
+	List(page, pageSize int, name string, status *int, providerId *int64, clusterID string) (int64, []model.K8sConfig, error)
+	GetDB() *gorm.DB
 }
 
 // k8sConfigRepository Kubernetes配置仓库实现
@@ -67,7 +68,7 @@ func (r *k8sConfigRepository) Get(id int64) (*model.K8sConfig, error) {
 }
 
 // List 获取Kubernetes配置列表
-func (r *k8sConfigRepository) List(page, pageSize int, name string, status *int, providerId *int64) (int64, []model.K8sConfig, error) {
+func (r *k8sConfigRepository) List(page, pageSize int, name string, status *int, providerId *int64, clusterID string) (int64, []model.K8sConfig, error) {
 	var configs []model.K8sConfig
 	var total int64
 
@@ -80,6 +81,9 @@ func (r *k8sConfigRepository) List(page, pageSize int, name string, status *int,
 	}
 	if providerId != nil {
 		query = query.Where("infra_k8s_config.provider_id = ?", *providerId)
+	}
+	if clusterID != "" {
+		query = query.Where("infra_k8s_config.cluster_id = ?", clusterID)
 	}
 
 	if err := query.Count(&total).Error; err != nil {
@@ -108,6 +112,11 @@ func (r *k8sConfigRepository) List(page, pageSize int, name string, status *int,
 	}
 
 	return total, configs, nil
+}
+
+// GetDB 获取数据库连接
+func (r *k8sConfigRepository) GetDB() *gorm.DB {
+	return r.db
 }
 
 // TestConnection 测试Kubernetes集群连接

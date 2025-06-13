@@ -19,14 +19,23 @@ type K8sConfig struct {
 	SyncInterval  int        `gorm:"type:int;default:30;comment:同步间隔(秒)" json:"syncInterval"`
 	Version       string     `gorm:"type:varchar(20)" json:"version"`
 	Context       string     `gorm:"type:varchar(100)" json:"context"`
+	ClusterID     string     `gorm:"type:varchar(100)" json:"clusterID"`
 	NodeCount     int        `gorm:"type:int;default:0" json:"nodeCount"`
 	PodCount      int        `gorm:"type:int;default:0" json:"podCount"`
 	CPUTotal      string     `gorm:"type:varchar(20)" json:"cpuTotal"`
 	CPUUsed       string     `gorm:"type:varchar(20)" json:"cpuUsed"`
 	MemoryTotal   string     `gorm:"type:varchar(20)" json:"memoryTotal"`
 	MemoryUsed    string     `gorm:"type:varchar(20)" json:"memoryUsed"`
-	WorkloadCount int        `gorm:"type:int;default:0;comment:工作负载数量" json:"workloadCount"`
-	LastSyncTime  *time.Time `json:"lastSyncTime"`
+	WorkloadCount   int        `gorm:"type:int;default:0;comment:工作负载数量" json:"workloadCount"`
+	WorkloadRunning int        `gorm:"type:int;default:0;comment:运行中工作负载数量" json:"workloadRunning"`
+	WorkloadIdle    int        `gorm:"type:int;default:0;comment:闲置工作负载数量" json:"workloadIdle"`
+	PodTotal        int        `gorm:"type:int;default:0;comment:Pod总数" json:"podTotal"`
+	PodRunning      int        `gorm:"type:int;default:0;comment:运行中Pod数量" json:"podRunning"`
+	PodError        int        `gorm:"type:int;default:0;comment:异常Pod数量" json:"podError"`
+	NodeTotal       int        `gorm:"type:int;default:0;comment:节点总数" json:"nodeTotal"`
+	NodeRunning     int        `gorm:"type:int;default:0;comment:运行中节点数量" json:"nodeRunning"`
+	NodeError       int        `gorm:"type:int;default:0;comment:异常节点数量" json:"nodeError"`
+	LastSyncTime    *time.Time `json:"lastSyncTime"`
 	CreatedAt     time.Time  `json:"createdAt"`
 	UpdatedAt     time.Time  `json:"updatedAt"`
 	DeletedAt     *time.Time `gorm:"index" json:"-"`
@@ -58,14 +67,23 @@ type K8sConfigResponse struct {
 	SyncInterval  int        `json:"syncInterval"`
 	Version       string     `json:"version"`
 	Context       string     `json:"context"`
+	ClusterID     string     `json:"clusterID"`
 	NodeCount     int        `json:"nodeCount"`
 	PodCount      int        `json:"podCount"`
 	CPUTotal      string     `json:"cpuTotal"`
 	CPUUsed       string     `json:"cpuUsed"`
 	MemoryTotal   string     `json:"memoryTotal"`
 	MemoryUsed    string     `json:"memoryUsed"`
-	WorkloadCount int64      `json:"workloadCount"`
-	LastSyncTime  *time.Time `json:"lastSyncTime"`
+	WorkloadCount   int64      `json:"workloadCount"`
+	WorkloadRunning int        `json:"workloadRunning"`
+	WorkloadIdle    int        `json:"workloadIdle"`
+	PodTotal        int        `json:"podTotal"`
+	PodRunning      int        `json:"podRunning"`
+	PodError        int        `json:"podError"`
+	NodeTotal       int        `json:"nodeTotal"`
+	NodeRunning     int        `json:"nodeRunning"`
+	NodeError       int        `json:"nodeError"`
+	LastSyncTime    *time.Time `json:"lastSyncTime"`
 	CreatedAt     time.Time  `json:"createdAt"`
 	UpdatedAt     time.Time  `json:"updatedAt"`
 }
@@ -83,14 +101,23 @@ func (c *K8sConfig) ToResponse() *K8sConfigResponse {
 		SyncInterval:  c.SyncInterval,
 		Version:       c.Version,
 		Context:       c.Context,
+		ClusterID:     c.ClusterID,
 		NodeCount:     c.NodeCount,
 		PodCount:      c.PodCount,
 		CPUTotal:      c.FormatCPU(c.CPUTotal),
 		CPUUsed:       c.FormatCPU(c.CPUUsed),
 		MemoryTotal:   c.MemoryTotal,
 		MemoryUsed:    c.MemoryUsed,
-		WorkloadCount: int64(c.WorkloadCount),
-		LastSyncTime:  c.LastSyncTime,
+		WorkloadCount:   int64(c.WorkloadCount),
+		WorkloadRunning: c.WorkloadRunning,
+		WorkloadIdle:    c.WorkloadIdle,
+		PodTotal:        c.PodTotal,
+		PodRunning:      c.PodRunning,
+		PodError:        c.PodError,
+		NodeTotal:       c.NodeTotal,
+		NodeRunning:     c.NodeRunning,
+		NodeError:       c.NodeError,
+		LastSyncTime:    c.LastSyncTime,
 		CreatedAt:     c.CreatedAt,
 		UpdatedAt:     c.UpdatedAt,
 	}

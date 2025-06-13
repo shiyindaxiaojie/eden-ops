@@ -82,7 +82,7 @@ func (t *K8sSyncTask) refreshSyncJobs() {
 	file := filepath.Base(filePath)
 
 	// 获取所有启用的Kubernetes配置
-	configs, _, err := t.service.List(1, 1000, "", nil, nil)
+	configs, _, err := t.service.List(1, 1000, "", nil, nil, "")
 	if err != nil {
 		timestamp := time.Now().Format(utils.DateTimeMillisecond)
 		t.logger.Errorf("%s %s:%d 获取Kubernetes配置列表失败: %v", timestamp, file, line, err)

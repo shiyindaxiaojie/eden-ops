@@ -31,10 +31,11 @@
         <el-form-item label="实例IP" prop="instanceIP">
           <el-input v-model="queryParams.instanceIP" placeholder="请输入实例IP" clearable />
         </el-form-item>
-        <el-form-item label="状态" prop="status">
+        <el-form-item v-if="showStatusFilter" label="状态" prop="status">
           <el-select v-model="queryParams.status" placeholder="请选择状态" clearable style="min-width: 120px;">
             <el-option label="全部" value="" />
             <el-option label="运行中" value="Running" />
+            <el-option label="异常" value="Error" />
             <el-option label="等待中" value="Pending" />
             <el-option label="失败" value="Failed" />
             <el-option label="成功" value="Succeeded" />
@@ -107,10 +108,16 @@
         v-if="total > 0"
         :current-page="queryParams.page"
         :page-size="queryParams.pageSize"
+        :page-sizes="[10, 20, 50, 100]"
         :total="total"
         class="pagination"
         background
-        layout="total, prev, pager, next"
+        layout="total, sizes, prev, pager, next, jumper"
+        :total-text="`共 ${total} 条`"
+        :page-size-text="'条/页'"
+        :goto-text="'前往'"
+        :page-text="'页'"
+        @size-change="handleSizeChange"
         @current-change="handlePageChange"
       />
     </el-card>
@@ -133,6 +140,7 @@ const namespaceOptions = ref([])
 const clusterName = ref('')
 const configId = ref('')
 const dateRange = ref([])
+const showStatusFilter = ref(true) // 控制状态过滤器显示
 
 const queryParams = ref({
   page: 1,
@@ -232,6 +240,12 @@ const handlePageChange = (page: number) => {
   getList()
 }
 
+const handleSizeChange = (size: number) => {
+  queryParams.value.pageSize = size
+  queryParams.value.page = 1
+  getList()
+}
+
 const handleViewDetail = (row: any) => {
   ElMessage.info('Pod详情功能开发中...')
 }
@@ -285,6 +299,19 @@ onMounted(() => {
   configId.value = route.query.configId as string
   clusterName.value = route.query.clusterName as string || '未知集群'
   queryParams.value.configId = configId.value
+
+  // 从URL参数获取状态过滤
+  const statusParam = route.query.status as string
+  if (statusParam) {
+    // 如果有状态参数，说明是从集群管理页面跳转过来的，隐藏状态过滤器
+    showStatusFilter.value = false
+    if (statusParam === 'Error') {
+      // 异常状态：非Running状态
+      queryParams.value.status = 'Error'
+    } else {
+      queryParams.value.status = statusParam
+    }
+  }
 
   if (!configId.value) {
     ElMessage.error('缺少集群配置ID')

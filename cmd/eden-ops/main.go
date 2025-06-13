@@ -190,7 +190,9 @@ func main() {
 	serverConfigService := service.NewServerConfigService(serverConfigRepo)
 	k8sWorkloadService := service.NewK8sWorkloadService(k8sWorkloadRepo)
 	k8sPodService := service.NewK8sPodService(k8sPodRepo)
-	k8sConfigService := service.NewK8sConfigService(k8sConfigRepo, k8sWorkloadService, k8sWorkloadRepo, k8sNamespaceRepo, k8sPodService)
+	k8sNodeRepo := repository.NewK8sNodeRepository(db)
+	k8sNodeService := service.NewK8sNodeService(k8sNodeRepo)
+	k8sConfigService := service.NewK8sConfigService(k8sConfigRepo, k8sWorkloadService, k8sWorkloadRepo, k8sNamespaceRepo, k8sPodService, k8sNodeService)
 
 	// 创建日志记录器
 	logrusLogger := logrus.New()
@@ -220,6 +222,7 @@ func main() {
 	k8sWorkloadHandler := handler.NewK8sWorkloadHandler(k8sWorkloadService)
 	k8sNamespaceHandler := handler.NewK8sNamespaceHandler(k8sNamespaceRepo)
 	k8sPodHandler := handler.NewK8sPodHandler(k8sPodService)
+	k8sNodeHandler := handler.NewK8sNodeHandler(k8sNodeService)
 
 	// 初始化路由
 	logger.Info("初始化路由...")
@@ -233,6 +236,7 @@ func main() {
 		k8sWorkloadHandler,
 		k8sNamespaceHandler,
 		k8sPodHandler,
+		k8sNodeHandler,
 		userHandler,
 		roleHandler,
 		menuHandler,

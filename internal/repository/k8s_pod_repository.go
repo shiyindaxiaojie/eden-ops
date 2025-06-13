@@ -94,7 +94,13 @@ func (r *k8sPodRepository) ListWithFilter(page, pageSize int, name, namespace, w
 		query = query.Where("workload_name LIKE ?", "%"+workloadName+"%")
 	}
 	if status != "" {
-		query = query.Where("status = ?", status)
+		if status == "Error" {
+			// 异常状态：非Running状态
+			query = query.Where("status != ?", "Running")
+		} else {
+			// 其他状态按原来的逻辑
+			query = query.Where("status = ?", status)
+		}
 	}
 	if instanceIP != "" {
 		query = query.Where("instance_ip LIKE ?", "%"+instanceIP+"%")

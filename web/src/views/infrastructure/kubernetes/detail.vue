@@ -15,7 +15,7 @@
 
       <!-- 集群信息 -->
       <el-descriptions class="cluster-info" :column="4" border>
-        <el-descriptions-item label="Context">{{ config?.context || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="集群ID">{{ config?.clusterID || '-' }}</el-descriptions-item>
         <el-descriptions-item label="云厂商">{{ config?.provider?.name || '-' }}</el-descriptions-item>
         <el-descriptions-item label="版本">{{ config?.version || '-' }}</el-descriptions-item>
         <el-descriptions-item label="状态">

@@ -13,10 +13,13 @@
           <el-input v-model="queryParams.name" placeholder="请输入账号名称" clearable />
         </el-form-item>
         <el-form-item label="云厂商">
-          <el-select v-model="queryParams.provider" placeholder="请选择云厂商" clearable style="min-width: 240px">
-            <el-option label="腾讯云" value="tencent" />
-            <el-option label="阿里云" value="aliyun" />
-            <el-option label="华为云" value="huawei" />
+          <el-select v-model="queryParams.providerId" placeholder="请选择云厂商" clearable style="min-width: 240px">
+            <el-option
+              v-for="item in providerOptions"
+              :key="item.id"
+              :label="item.name"
+              :value="item.id"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
@@ -34,9 +37,9 @@
       <el-table :data="accountList" style="width: 100%" v-loading="loading">
         <el-table-column type="index" label="序号" width="60" />
         <el-table-column prop="name" label="账号名称" />
-        <el-table-column prop="provider" label="云厂商">
+        <el-table-column prop="providerName" label="云厂商">
           <template #default="{ row }">
-            <el-tag>{{ getProviderLabel(row.provider) }}</el-tag>
+            <el-tag>{{ row.providerName || '-' }}</el-tag>
         </template>
       </el-table-column>
         <el-table-column prop="region" label="地域" />
@@ -61,11 +64,16 @@
       <el-pagination
         v-if="total > 0"
         class="pagination"
-      :total="total"
+        :total="total"
         v-model:current-page="queryParams.pageNum"
         v-model:page-size="queryParams.pageSize"
-        :page-sizes="[10, 20, 30, 50]"
+        :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
+        :total-text="`共 ${total} 条`"
+        :page-size-text="'条/页'"
+        :goto-text="'前往'"
+        :page-text="'页'"
+        background
         @size-change="handleSizeChange"
         @current-change="handleCurrentChange"
       />
@@ -86,11 +94,14 @@
         <el-form-item label="账号名称" prop="name">
             <el-input v-model="form.name" placeholder="请输入账号名称" />
         </el-form-item>
-          <el-form-item label="云厂商" prop="provider">
-            <el-select v-model="form.provider" placeholder="请选择云厂商" style="width: 100%; min-width: 240px">
-              <el-option label="腾讯云" value="tencent" />
-              <el-option label="阿里云" value="aliyun" />
-              <el-option label="华为云" value="huawei" />
+          <el-form-item label="云厂商" prop="providerId">
+            <el-select v-model="form.providerId" placeholder="请选择云厂商" style="width: 100%; min-width: 240px">
+              <el-option
+                v-for="item in providerOptions"
+                :key="item.id"
+                :label="item.name"
+                :value="item.id"
+              />
           </el-select>
         </el-form-item>
           <el-form-item label="Access Key" prop="access_key">
@@ -144,11 +155,12 @@ import {
   deleteCloudAccount,
   testCloudAccount
 } from '@/api/cloud-account'
+import { getCloudProviderList } from '@/api/infrastructure/cloud-provider'
 import type { CloudAccount } from '@/types/api'
 
 interface QueryParams {
   name: string
-  provider: string
+  providerId: number | null
   status: string
   pageNum: number
   pageSize: number

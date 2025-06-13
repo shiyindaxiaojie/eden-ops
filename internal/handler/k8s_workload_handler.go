@@ -28,6 +28,7 @@ func (h *K8sWorkloadHandler) List(c *gin.Context) {
 	namespace := c.Query("namespace")
 	workloadType := c.Query("workloadType")
 	status := c.Query("status")
+	replicas := c.Query("replicas")
 	sortBy := c.Query("sortBy")
 	sortOrder := c.DefaultQuery("sortOrder", "asc")
 	startTimeStr := c.Query("startTime")
@@ -49,7 +50,7 @@ func (h *K8sWorkloadHandler) List(c *gin.Context) {
 		endTime = &endTimeStr
 	}
 
-	workloads, total, err := h.workloadService.ListWithFilter(page, pageSize, name, namespace, workloadType, status, sortBy, sortOrder, startTime, endTime, configId)
+	workloads, total, err := h.workloadService.ListWithFilter(page, pageSize, name, namespace, workloadType, status, replicas, sortBy, sortOrder, startTime, endTime, configId)
 	if err != nil {
 		response.Failed(c, err)
 		return

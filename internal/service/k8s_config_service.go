@@ -4,6 +4,7 @@ import (
 	"context"
 	"eden-ops/internal/model"
 	"eden-ops/internal/repository"
+	"eden-ops/internal/utils"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -26,8 +27,8 @@ type K8sConfigService interface {
 	UpdateWithClusterInfo(config *model.K8sConfig) error
 	Delete(id uint) error
 	Get(id uint) (*model.K8sConfig, error)
-	List(page, pageSize int, name string, status *int, providerId *int64) ([]*model.K8sConfig, int64, error)
-	ListWithWorkloadCount(page, pageSize int, name string, status *int, providerId *int64) ([]*model.K8sConfigResponse, int64, error)
+	List(page, pageSize int, name string, status *int, providerId *int64, clusterID string) ([]*model.K8sConfig, int64, error)
+	ListWithWorkloadCount(page, pageSize int, name string, status *int, providerId *int64, clusterID string) ([]*model.K8sConfigResponse, int64, error)
 	TestConnection(config *model.K8sConfig) error
 	SyncCluster(id int64) error
 	GetNamespaces(id int64) ([]string, error)
@@ -40,16 +41,18 @@ type k8sConfigService struct {
 	workloadRepo        repository.K8sWorkloadRepository
 	namespaceRepository repository.K8sNamespaceRepository
 	podService          K8sPodService
+	nodeService         K8sNodeService
 }
 
 // NewK8sConfigService 创建Kubernetes配置服务
-func NewK8sConfigService(repo repository.K8sConfigRepository, workloadService K8sWorkloadService, workloadRepo repository.K8sWorkloadRepository, namespaceRepo repository.K8sNamespaceRepository, podService K8sPodService) K8sConfigService {
+func NewK8sConfigService(repo repository.K8sConfigRepository, workloadService K8sWorkloadService, workloadRepo repository.K8sWorkloadRepository, namespaceRepo repository.K8sNamespaceRepository, podService K8sPodService, nodeService K8sNodeService) K8sConfigService {
 	return &k8sConfigService{
 		repo:                repo,
 		workloadService:     workloadService,
 		workloadRepo:        workloadRepo,
 		namespaceRepository: namespaceRepo,
 		podService:          podService,
+		nodeService:         nodeService,
 	}
 }
 
@@ -60,6 +63,11 @@ func (s *k8sConfigService) Create(config *model.K8sConfig) error {
 
 // CreateWithClusterInfo 创建Kubernetes配置并获取集群信息
 func (s *k8sConfigService) CreateWithClusterInfo(config *model.K8sConfig) error {
+	// 解析kubeconfig获取集群ID和上下文
+	if err := s.parseKubeconfigInfo(config); err != nil {
+		return fmt.Errorf("failed to parse kubeconfig: %v", err)
+	}
+
 	// 先创建配置
 	if err := s.repo.Create(config); err != nil {
 		return err
@@ -83,6 +91,11 @@ func (s *k8sConfigService) Update(config *model.K8sConfig) error {
 
 // UpdateWithClusterInfo 更新Kubernetes配置并获取集群信息
 func (s *k8sConfigService) UpdateWithClusterInfo(config *model.K8sConfig) error {
+	// 解析kubeconfig获取集群ID和上下文
+	if err := s.parseKubeconfigInfo(config); err != nil {
+		return fmt.Errorf("failed to parse kubeconfig: %v", err)
+	}
+
 	// 先更新配置
 	if err := s.repo.Update(config); err != nil {
 		return err
@@ -110,8 +123,8 @@ func (s *k8sConfigService) Get(id uint) (*model.K8sConfig, error) {
 }
 
 // List 获取Kubernetes配置列表
-func (s *k8sConfigService) List(page, pageSize int, name string, status *int, providerId *int64) ([]*model.K8sConfig, int64, error) {
-	total, configs, err := s.repo.List(page, pageSize, name, status, providerId)
+func (s *k8sConfigService) List(page, pageSize int, name string, status *int, providerId *int64, clusterID string) ([]*model.K8sConfig, int64, error) {
+	total, configs, err := s.repo.List(page, pageSize, name, status, providerId, clusterID)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -125,8 +138,8 @@ func (s *k8sConfigService) List(page, pageSize int, name string, status *int, pr
 }
 
 // ListWithWorkloadCount 获取Kubernetes配置列表（包含工作负载统计）
-func (s *k8sConfigService) ListWithWorkloadCount(page, pageSize int, name string, status *int, providerId *int64) ([]*model.K8sConfigResponse, int64, error) {
-	total, configs, err := s.repo.List(page, pageSize, name, status, providerId)
+func (s *k8sConfigService) ListWithWorkloadCount(page, pageSize int, name string, status *int, providerId *int64, clusterID string) ([]*model.K8sConfigResponse, int64, error) {
+	total, configs, err := s.repo.List(page, pageSize, name, status, providerId, clusterID)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -155,6 +168,25 @@ func (s *k8sConfigService) TestConnection(config *model.K8sConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to get cluster version: %v", err)
 	}
+
+	return nil
+}
+
+// parseKubeconfigInfo 解析kubeconfig信息
+func (s *k8sConfigService) parseKubeconfigInfo(config *model.K8sConfig) error {
+	// 获取集群ID
+	clusterID, err := utils.GetClusterIDFromKubeconfig(config.Kubeconfig)
+	if err != nil {
+		return fmt.Errorf("failed to get cluster ID: %v", err)
+	}
+	config.ClusterID = clusterID
+
+	// 获取上下文
+	context, err := utils.GetContextFromKubeconfig(config.Kubeconfig)
+	if err != nil {
+		return fmt.Errorf("failed to get context: %v", err)
+	}
+	config.Context = context
 
 	return nil
 }
@@ -275,18 +307,231 @@ func (s *k8sConfigService) SyncCluster(id int64) error {
 		return fmt.Errorf("failed to sync pods: %v", err)
 	}
 
+	// 获取节点信息
+	nodes, err := s.getNodesFromCluster(clientset, id)
+	if err != nil {
+		return fmt.Errorf("failed to get nodes: %v", err)
+	}
+
+	// 同步节点到数据库
+	if err := s.nodeService.BatchCreateOrUpdate(nodes); err != nil {
+		return fmt.Errorf("failed to sync nodes: %v", err)
+	}
+
 	// 同步命名空间信息
 	if err := s.syncNamespaces(id, workloads); err != nil {
 		return fmt.Errorf("failed to sync namespaces: %v", err)
 	}
 
-	// 更新工作负载数量到配置表
-	config.WorkloadCount = len(workloads)
+	// 计算统计数据
+	if err := s.calculateStatistics(config, workloads, nodes); err != nil {
+		return fmt.Errorf("failed to calculate statistics: %v", err)
+	}
+
+	// 更新统计数据到配置表
 	if err := s.repo.Update(config); err != nil {
-		return fmt.Errorf("failed to update workload count: %v", err)
+		return fmt.Errorf("failed to update statistics: %v", err)
 	}
 
 	return nil
+}
+
+// getNodesFromCluster 从K8s集群获取节点信息
+func (s *k8sConfigService) getNodesFromCluster(clientset *kubernetes.Clientset, configID int64) ([]model.K8sNode, error) {
+	var nodes []model.K8sNode
+	ctx := context.Background()
+
+	// 获取所有节点
+	nodeList, err := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list nodes: %v", err)
+	}
+
+	for _, n := range nodeList.Items {
+		node := model.K8sNode{
+			ConfigID:    configID,
+			Name:        n.Name,
+			Status:      getNodeStatus(n.Status.Conditions),
+			Ready:       isNodeReady(n.Status.Conditions),
+			Schedulable: !n.Spec.Unschedulable,
+			CreatedAt:   n.CreationTimestamp.Time,
+			UpdatedAt:   time.Now(),
+		}
+
+		// 获取节点地址信息
+		for _, addr := range n.Status.Addresses {
+			switch addr.Type {
+			case corev1.NodeInternalIP:
+				node.InternalIP = addr.Address
+			case corev1.NodeExternalIP:
+				node.ExternalIP = addr.Address
+			case corev1.NodeHostName:
+				node.Hostname = addr.Address
+			}
+		}
+
+		// 获取节点系统信息
+		if n.Status.NodeInfo.OSImage != "" {
+			node.OSImage = n.Status.NodeInfo.OSImage
+		}
+		if n.Status.NodeInfo.KernelVersion != "" {
+			node.KernelVersion = n.Status.NodeInfo.KernelVersion
+		}
+		if n.Status.NodeInfo.ContainerRuntimeVersion != "" {
+			node.ContainerRuntime = n.Status.NodeInfo.ContainerRuntimeVersion
+		}
+		if n.Status.NodeInfo.KubeletVersion != "" {
+			node.KubeletVersion = n.Status.NodeInfo.KubeletVersion
+		}
+		if n.Status.NodeInfo.KubeProxyVersion != "" {
+			node.KubeProxyVersion = n.Status.NodeInfo.KubeProxyVersion
+		}
+
+		// 获取节点资源容量和可分配资源
+		if cpu := n.Status.Capacity.Cpu(); cpu != nil {
+			node.CPUCapacity = cpu.String()
+		}
+		if memory := n.Status.Capacity.Memory(); memory != nil {
+			node.MemoryCapacity = memory.String()
+		}
+		if pods := n.Status.Capacity.Pods(); pods != nil {
+			node.PodsCapacity = pods.String()
+		}
+		if cpu := n.Status.Allocatable.Cpu(); cpu != nil {
+			node.CPUAllocatable = cpu.String()
+		}
+		if memory := n.Status.Allocatable.Memory(); memory != nil {
+			node.MemoryAllocatable = memory.String()
+		}
+		if pods := n.Status.Allocatable.Pods(); pods != nil {
+			node.PodsAllocatable = pods.String()
+		}
+
+		// 序列化标签、注解、污点和条件
+		if len(n.Labels) > 0 {
+			if labelsBytes, err := json.Marshal(n.Labels); err == nil {
+				node.Labels = string(labelsBytes)
+			}
+		}
+		if len(n.Annotations) > 0 {
+			if annotationsBytes, err := json.Marshal(n.Annotations); err == nil {
+				node.Annotations = string(annotationsBytes)
+			}
+		}
+		if len(n.Spec.Taints) > 0 {
+			if taintsBytes, err := json.Marshal(n.Spec.Taints); err == nil {
+				node.Taints = string(taintsBytes)
+			}
+		}
+		if len(n.Status.Conditions) > 0 {
+			if conditionsBytes, err := json.Marshal(n.Status.Conditions); err == nil {
+				node.Conditions = string(conditionsBytes)
+			}
+		}
+
+		// 获取节点上运行的Pod数量
+		podList, err := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{
+			FieldSelector: "spec.nodeName=" + n.Name,
+		})
+		if err == nil {
+			node.PodsUsage = len(podList.Items)
+		}
+
+		nodes = append(nodes, node)
+	}
+
+	return nodes, nil
+}
+
+// getNodeStatus 获取节点状态
+func getNodeStatus(conditions []corev1.NodeCondition) string {
+	for _, condition := range conditions {
+		if condition.Type == corev1.NodeReady {
+			if condition.Status == corev1.ConditionTrue {
+				return "Ready"
+			} else {
+				return "NotReady"
+			}
+		}
+	}
+	return "Unknown"
+}
+
+// isNodeReady 检查节点是否就绪
+func isNodeReady(conditions []corev1.NodeCondition) bool {
+	for _, condition := range conditions {
+		if condition.Type == corev1.NodeReady {
+			return condition.Status == corev1.ConditionTrue
+		}
+	}
+	return false
+}
+
+// calculateStatistics 计算集群统计数据
+func (s *k8sConfigService) calculateStatistics(config *model.K8sConfig, workloads []model.K8sWorkload, nodes []model.K8sNode) error {
+	// 工作负载统计 - 基于 replicas 数量
+	config.WorkloadCount = len(workloads)
+	workloadRunning := 0
+	workloadIdle := 0
+
+	for _, workload := range workloads {
+		if workload.Replicas > 0 {
+			workloadRunning++
+		} else {
+			workloadIdle++
+		}
+	}
+
+	config.WorkloadRunning = workloadRunning
+	config.WorkloadIdle = workloadIdle
+
+	// Pod统计 - 需要查询数据库获取Pod信息
+	podTotal, podRunning, podError, err := s.calculatePodStatistics(uint(config.ID))
+	if err != nil {
+		return fmt.Errorf("failed to calculate pod statistics: %v", err)
+	}
+
+	config.PodTotal = podTotal
+	config.PodRunning = podRunning
+	config.PodError = podError
+
+	// 节点统计 - 基于 ready 字段
+	config.NodeTotal = len(nodes)
+	nodeRunning := 0
+	nodeError := 0
+
+	for _, node := range nodes {
+		if node.Ready {
+			nodeRunning++
+		} else {
+			nodeError++
+		}
+	}
+
+	config.NodeRunning = nodeRunning
+	config.NodeError = nodeError
+
+	return nil
+}
+
+// calculatePodStatistics 计算Pod统计数据
+func (s *k8sConfigService) calculatePodStatistics(configID uint) (int, int, int, error) {
+	var total int64
+	var running int64
+
+	// 查询Pod总数
+	if err := s.repo.GetDB().Model(&model.K8sPod{}).Where("config_id = ?", configID).Count(&total).Error; err != nil {
+		return 0, 0, 0, err
+	}
+
+	// 查询运行中的Pod数量
+	if err := s.repo.GetDB().Model(&model.K8sPod{}).Where("config_id = ? AND status = ?", configID, "Running").Count(&running).Error; err != nil {
+		return 0, 0, 0, err
+	}
+
+	error := total - running
+
+	return int(total), int(running), int(error), nil
 }
 
 // GetNamespaces 获取命名空间列表
