@@ -71,6 +71,9 @@
               <div>
                 <el-link :type="(row.workloadIdle || 0) > 0 ? 'danger' : 'info'" @click="handleViewWorkloads(row, 'eq0')">闲置 {{ row.workloadIdle || 0 }}</el-link>
               </div>
+              <div>
+                <el-link :type="(row.workloadDestroyedCount || 0) > 0 ? 'warning' : 'info'" @click="handleViewHistory(row, 'workloads')">删除 {{ row.workloadDestroyedCount || 0 }}</el-link>
+              </div>
             </div>
           </template>
         </el-table-column>
@@ -86,6 +89,9 @@
               <div>
                 <el-link :type="(row.podError || 0) > 0 ? 'danger' : 'info'" @click="handleViewPods(row, 'Error')">异常 {{ row.podError || 0 }}</el-link>
               </div>
+              <div>
+                <el-link :type="(row.podDestroyedCount || 0) > 0 ? 'warning' : 'info'" @click="handleViewHistory(row, 'pods')">销毁 {{ row.podDestroyedCount || 0 }}</el-link>
+              </div>
             </div>
           </template>
         </el-table-column>
@@ -100,6 +106,9 @@
               </div>
               <div>
                 <el-link :type="(row.nodeError || 0) > 0 ? 'danger' : 'info'" @click="handleViewNodes(row, 'NotReady')">异常 {{ row.nodeError || 0 }}</el-link>
+              </div>
+              <div>
+                <el-link :type="(row.nodeDestroyedCount || 0) > 0 ? 'warning' : 'info'" @click="handleViewHistory(row, 'nodes')">驱逐 {{ row.nodeDestroyedCount || 0 }}</el-link>
               </div>
             </div>
           </template>
@@ -403,6 +412,16 @@ const handleViewNodes = (row: any, status: string = '') => {
   router.push({
     path: '/infrastructure/kubernetes/nodes',
     query
+  })
+}
+
+const handleViewHistory = (row: any, type: string) => {
+  // 路由到历史数据页面
+  router.push({
+    path: `/infrastructure/kubernetes/history/${row.id}/${type}`,
+    query: {
+      clusterName: row.name
+    }
   })
 }
 

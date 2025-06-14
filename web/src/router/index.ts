@@ -73,6 +73,13 @@ export const constantRoutes: Array<RouteRecordRaw> = [
         hidden: true
       },
       {
+        path: 'kubernetes/history/:configId/:type',
+        component: () => import('@/views/infrastructure/kubernetes/history.vue'),
+        name: 'KubernetesHistory',
+        meta: { title: 'Kubernetes 历史数据', activeMenu: '/infrastructure/kubernetes' },
+        hidden: true
+      },
+      {
         path: 'cloud-provider',
         name: 'CloudProvider',
         component: () => import('@/views/infrastructure/cloud-provider/index.vue'),

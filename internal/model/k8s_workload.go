@@ -12,8 +12,8 @@ import (
 type K8sWorkload struct {
 	ID            int64      `json:"id" gorm:"primaryKey"`
 	ConfigID      int64      `json:"config_id" gorm:"not null"`
-	Name          string     `json:"name" gorm:"size:200;not null"`
-	Namespace     string     `json:"namespace" gorm:"size:100;not null"`
+	Name          string     `json:"name" gorm:"size:100;not null"`
+	Namespace     string     `json:"namespace" gorm:"size:63;not null"`
 	Kind          string     `json:"kind" gorm:"size:20;not null"`
 	Replicas      int        `json:"replicas" gorm:"default:0"`
 	ReadyReplicas int        `json:"ready_replicas" gorm:"default:0"`
@@ -113,22 +113,22 @@ func (w *K8sWorkload) GetImagesList() []string {
 
 // K8sWorkloadResponse 工作负载响应结构
 type K8sWorkloadResponse struct {
-	ID               int64                  `json:"id"`
-	ConfigID         int64                  `json:"config_id"`
-	Name             string                 `json:"name"`
-	Namespace        string                 `json:"namespace"`
-	Kind             string                 `json:"kind"`
-	Replicas         int                    `json:"replicas"`
-	ReadyReplicas    int                    `json:"ready_replicas"`
-	PodStatus        string                 `json:"pod_status"`        // 运行/期望Pod数量
-	Status           string                 `json:"status"`
-	Labels           map[string]string      `json:"labels,omitempty"`
-	Selector         map[string]string      `json:"selector,omitempty"`
-	Images           []string               `json:"images,omitempty"`
-	CPURequestLimits string                 `json:"cpu_request_limits"` // CPU Request/Limits
-	MemoryRequestLimits string              `json:"memory_request_limits"` // 内存 Request/Limits
-	CreatedAt        time.Time              `json:"created_at"`
-	UpdatedAt        time.Time              `json:"updated_at"`
+	ID                  int64             `json:"id"`
+	ConfigID            int64             `json:"config_id"`
+	Name                string            `json:"name"`
+	Namespace           string            `json:"namespace"`
+	Kind                string            `json:"kind"`
+	Replicas            int               `json:"replicas"`
+	ReadyReplicas       int               `json:"ready_replicas"`
+	PodStatus           string            `json:"pod_status"` // 运行/期望Pod数量
+	Status              string            `json:"status"`
+	Labels              map[string]string `json:"labels,omitempty"`
+	Selector            map[string]string `json:"selector,omitempty"`
+	Images              []string          `json:"images,omitempty"`
+	CPURequestLimits    string            `json:"cpu_request_limits"`    // CPU Request/Limits
+	MemoryRequestLimits string            `json:"memory_request_limits"` // 内存 Request/Limits
+	CreatedAt           time.Time         `json:"created_at"`
+	UpdatedAt           time.Time         `json:"updated_at"`
 }
 
 // ToResponse 转换为响应结构

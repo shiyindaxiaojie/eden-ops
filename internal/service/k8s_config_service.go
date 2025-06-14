@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -43,10 +44,22 @@ type k8sConfigService struct {
 	namespaceRepository repository.K8sNamespaceRepository
 	podService          K8sPodService
 	nodeService         K8sNodeService
+	podHistoryRepo      repository.K8sPodHistoryRepository
+	nodeHistoryRepo     repository.K8sNodeHistoryRepository
+	workloadHistoryRepo repository.K8sWorkloadHistoryRepository
 }
 
 // NewK8sConfigService 创建Kubernetes配置服务
-func NewK8sConfigService(repo repository.K8sConfigRepository, workloadService K8sWorkloadService, workloadRepo repository.K8sWorkloadRepository, namespaceRepo repository.K8sNamespaceRepository, podService K8sPodService, nodeService K8sNodeService) K8sConfigService {
+func NewK8sConfigService(
+	repo repository.K8sConfigRepository,
+	workloadService K8sWorkloadService,
+	workloadRepo repository.K8sWorkloadRepository,
+	namespaceRepo repository.K8sNamespaceRepository,
+	podService K8sPodService,
+	nodeService K8sNodeService,
+	podHistoryRepo repository.K8sPodHistoryRepository,
+	nodeHistoryRepo repository.K8sNodeHistoryRepository,
+	workloadHistoryRepo repository.K8sWorkloadHistoryRepository) K8sConfigService {
 	return &k8sConfigService{
 		repo:                repo,
 		workloadService:     workloadService,
@@ -54,6 +67,9 @@ func NewK8sConfigService(repo repository.K8sConfigRepository, workloadService K8
 		namespaceRepository: namespaceRepo,
 		podService:          podService,
 		nodeService:         nodeService,
+		podHistoryRepo:      podHistoryRepo,
+		nodeHistoryRepo:     nodeHistoryRepo,
+		workloadHistoryRepo: workloadHistoryRepo,
 	}
 }
 
@@ -293,40 +309,94 @@ func (s *k8sConfigService) SyncCluster(id int64) error {
 		return fmt.Errorf("failed to update cluster info: %v", err)
 	}
 
-	// 获取工作负载
-	workloads, err := s.getWorkloadsFromCluster(clientset, id)
-	if err != nil {
-		return fmt.Errorf("failed to get workloads: %v", err)
-	}
-	syncStats.workloads = len(workloads)
+	// 并行获取和同步资源数据
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var syncErrors []error
+	var workloads []model.K8sWorkload
+	var pods []model.K8sPod
+	var nodes []model.K8sNode
 
-	// 同步工作负载到数据库
-	if err := s.workloadService.SyncWorkloads(id, workloads); err != nil {
-		return fmt.Errorf("failed to sync workloads: %v", err)
-	}
-
-	// 获取Pod信息
-	pods, err := s.getPods(clientset, id)
-	if err != nil {
-		return fmt.Errorf("failed to get pods: %v", err)
-	}
-	syncStats.pods = len(pods)
-
-	// 同步Pod到数据库
-	if err := s.podService.SyncPods(id, pods); err != nil {
-		return fmt.Errorf("failed to sync pods: %v", err)
+	// 添加错误收集函数
+	addError := func(err error) {
+		mu.Lock()
+		defer mu.Unlock()
+		syncErrors = append(syncErrors, err)
 	}
 
-	// 获取节点信息
-	nodes, err := s.getNodesFromCluster(clientset, id)
-	if err != nil {
-		return fmt.Errorf("failed to get nodes: %v", err)
-	}
-	syncStats.nodes = len(nodes)
+	// 并行获取资源数据
+	wg.Add(3)
 
-	// 同步节点到数据库
-	if err := s.nodeService.BatchCreateOrUpdate(nodes); err != nil {
-		return fmt.Errorf("failed to sync nodes: %v", err)
+	// 获取和同步工作负载
+	go func() {
+		defer wg.Done()
+		w, err := s.getWorkloadsFromCluster(clientset, id)
+		if err != nil {
+			addError(fmt.Errorf("failed to get workloads: %v", err))
+			return
+		}
+
+		mu.Lock()
+		workloads = w
+		syncStats.workloads = len(workloads)
+		mu.Unlock()
+
+		// 同步工作负载到数据库
+		if err := s.workloadService.SyncWorkloads(id, workloads); err != nil {
+			addError(fmt.Errorf("failed to sync workloads: %v", err))
+		}
+	}()
+
+	// 获取和同步Pod信息
+	go func() {
+		defer wg.Done()
+		p, err := s.getPods(clientset, id)
+		if err != nil {
+			addError(fmt.Errorf("failed to get pods: %v", err))
+			return
+		}
+
+		mu.Lock()
+		pods = p
+		syncStats.pods = len(pods)
+		mu.Unlock()
+
+		// 同步Pod到数据库
+		if err := s.podService.SyncPods(id, pods); err != nil {
+			addError(fmt.Errorf("failed to sync pods: %v", err))
+		}
+	}()
+
+	// 获取和同步节点信息
+	go func() {
+		defer wg.Done()
+		n, err := s.getNodesFromCluster(clientset, id)
+		if err != nil {
+			addError(fmt.Errorf("failed to get nodes: %v", err))
+			return
+		}
+
+		mu.Lock()
+		nodes = n
+		syncStats.nodes = len(nodes)
+		mu.Unlock()
+
+		// 同步节点到数据库
+		if err := s.nodeService.SyncNodes(id, nodes); err != nil {
+			addError(fmt.Errorf("failed to sync nodes: %v", err))
+		}
+	}()
+
+	// 等待所有并行任务完成
+	wg.Wait()
+
+	// 检查是否有错误
+	if len(syncErrors) > 0 {
+		var errorMessages []string
+		for _, err := range syncErrors {
+			errorMessages = append(errorMessages, err.Error())
+		}
+		return fmt.Errorf("sync errors: %s", strings.Join(errorMessages, "; "))
 	}
 
 	// 同步命名空间信息
@@ -348,6 +418,12 @@ func (s *k8sConfigService) SyncCluster(id int64) error {
 	// 更新统计数据到配置表
 	if err := s.repo.Update(config); err != nil {
 		return fmt.Errorf("failed to update statistics: %v", err)
+	}
+
+	// 更新销毁统计数据
+	if err := s.updateDestroyedStatistics(id); err != nil {
+		logger.Error("更新销毁统计数据失败: %v", err)
+		// 不中断同步流程，只记录错误
 	}
 
 	// 输出同步统计信息
@@ -621,7 +697,7 @@ func (s *k8sConfigService) getWorkloadsFromCluster(clientset *kubernetes.Clients
 
 		// 获取标签并序列化为JSON字符串
 		var labelsJSON *string
-		if d.Labels != nil && len(d.Labels) > 0 {
+		if len(d.Labels) > 0 {
 			if labelsBytes, err := json.Marshal(d.Labels); err == nil {
 				labelsStr := string(labelsBytes)
 				labelsJSON = &labelsStr
@@ -630,7 +706,7 @@ func (s *k8sConfigService) getWorkloadsFromCluster(clientset *kubernetes.Clients
 
 		// 获取选择器并序列化为JSON字符串
 		var selectorJSON *string
-		if d.Spec.Selector != nil && d.Spec.Selector.MatchLabels != nil && len(d.Spec.Selector.MatchLabels) > 0 {
+		if d.Spec.Selector != nil && len(d.Spec.Selector.MatchLabels) > 0 {
 			if selectorBytes, err := json.Marshal(d.Spec.Selector.MatchLabels); err == nil {
 				selectorStr := string(selectorBytes)
 				selectorJSON = &selectorStr
@@ -712,7 +788,7 @@ func (s *k8sConfigService) getWorkloadsFromCluster(clientset *kubernetes.Clients
 
 		// 获取标签并序列化为JSON字符串
 		var labelsJSON *string
-		if s.Labels != nil && len(s.Labels) > 0 {
+		if len(s.Labels) > 0 {
 			if labelsBytes, err := json.Marshal(s.Labels); err == nil {
 				labelsStr := string(labelsBytes)
 				labelsJSON = &labelsStr
@@ -721,7 +797,7 @@ func (s *k8sConfigService) getWorkloadsFromCluster(clientset *kubernetes.Clients
 
 		// 获取选择器并序列化为JSON字符串
 		var selectorJSON *string
-		if s.Spec.Selector != nil && s.Spec.Selector.MatchLabels != nil && len(s.Spec.Selector.MatchLabels) > 0 {
+		if s.Spec.Selector != nil && len(s.Spec.Selector.MatchLabels) > 0 {
 			if selectorBytes, err := json.Marshal(s.Spec.Selector.MatchLabels); err == nil {
 				selectorStr := string(selectorBytes)
 				selectorJSON = &selectorStr
@@ -798,7 +874,7 @@ func (s *k8sConfigService) getWorkloadsFromCluster(clientset *kubernetes.Clients
 	for _, d := range daemonsets.Items {
 		// 获取标签并序列化为JSON字符串
 		var labelsJSON *string
-		if d.Labels != nil && len(d.Labels) > 0 {
+		if len(d.Labels) > 0 {
 			if labelsBytes, err := json.Marshal(d.Labels); err == nil {
 				labelsStr := string(labelsBytes)
 				labelsJSON = &labelsStr
@@ -807,7 +883,7 @@ func (s *k8sConfigService) getWorkloadsFromCluster(clientset *kubernetes.Clients
 
 		// 获取选择器并序列化为JSON字符串
 		var selectorJSON *string
-		if d.Spec.Selector != nil && d.Spec.Selector.MatchLabels != nil && len(d.Spec.Selector.MatchLabels) > 0 {
+		if d.Spec.Selector != nil && len(d.Spec.Selector.MatchLabels) > 0 {
 			if selectorBytes, err := json.Marshal(d.Spec.Selector.MatchLabels); err == nil {
 				selectorStr := string(selectorBytes)
 				selectorJSON = &selectorStr
@@ -1030,7 +1106,7 @@ type ClusterInfo struct {
 }
 
 // getClusterInfo 获取集群资源信息
-func (s *k8sConfigService) getClusterInfo(clientset *kubernetes.Clientset, k8sConfig *rest.Config) (*ClusterInfo, error) {
+func (s *k8sConfigService) getClusterInfo(clientset *kubernetes.Clientset, _ *rest.Config) (*ClusterInfo, error) {
 	ctx := context.Background()
 	info := &ClusterInfo{}
 
@@ -1123,4 +1199,26 @@ func getDaemonSetStatus(status appsv1.DaemonSetStatus) string {
 		return "Running"
 	}
 	return "Pending"
+}
+
+// updateDestroyedStatistics 更新销毁统计数据
+func (s *k8sConfigService) updateDestroyedStatistics(configID int64) error {
+	// 统计各类型历史数据数量（这些数据代表被销毁的资源）
+	workloadCount, err := s.workloadHistoryRepo.CountWorkloadHistory(configID)
+	if err != nil {
+		return fmt.Errorf("failed to count workload history: %v", err)
+	}
+
+	podCount, err := s.podHistoryRepo.CountPodHistory(configID)
+	if err != nil {
+		return fmt.Errorf("failed to count pod history: %v", err)
+	}
+
+	nodeCount, err := s.nodeHistoryRepo.CountNodeHistory(configID)
+	if err != nil {
+		return fmt.Errorf("failed to count node history: %v", err)
+	}
+
+	// 更新到配置表
+	return s.repo.UpdateDestroyedStats(configID, int(workloadCount), int(podCount), int(nodeCount))
 }

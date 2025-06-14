@@ -13,12 +13,13 @@ import (
 
 // Config 系统配置结构
 type Config struct {
-	Server    ServerConfig    `mapstructure:"server"`
-	Database  DatabaseConfig  `mapstructure:"database"`
-	JWT       JWTConfig       `mapstructure:"jwt"`
-	Log       LogConfig       `mapstructure:"log"`
-	Tencent   TencentConfig   `mapstructure:"tencent"`
-	IPLocator IPLocatorConfig `mapstructure:"iplocator"`
+	Server     ServerConfig     `mapstructure:"server"`
+	Database   DatabaseConfig   `mapstructure:"database"`
+	JWT        JWTConfig        `mapstructure:"jwt"`
+	Log        LogConfig        `mapstructure:"log"`
+	Tencent    TencentConfig    `mapstructure:"tencent"`
+	IPLocator  IPLocatorConfig  `mapstructure:"iplocator"`
+	K8sHistory K8sHistoryConfig `mapstructure:"k8s_history"`
 }
 
 // ServerConfig 服务器配置
@@ -72,6 +73,15 @@ type IPLocatorConfig struct {
 	AccessKey string `mapstructure:"access_key"`
 	SecretKey string `mapstructure:"secret_key"`
 	BaseURL   string `mapstructure:"base_url"`
+}
+
+// K8sHistoryConfig K8s历史数据配置
+type K8sHistoryConfig struct {
+	Enabled         bool   `mapstructure:"enabled"`          // 是否启用历史表归档
+	CleanupEnabled  bool   `mapstructure:"cleanup_enabled"`  // 是否启用自动清理
+	CleanupDays     int    `mapstructure:"cleanup_days"`     // 保留天数
+	CleanupInterval string `mapstructure:"cleanup_interval"` // 清理检查间隔
+	BatchSize       int    `mapstructure:"batch_size"`       // 批量操作大小
 }
 
 // LoadFromEnv 从环境变量加载配置

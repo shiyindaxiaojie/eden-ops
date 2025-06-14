@@ -2,6 +2,8 @@ package repository
 
 import (
 	"eden-ops/internal/model"
+	"fmt"
+	"strings"
 
 	"gorm.io/gorm"
 )
@@ -16,7 +18,12 @@ type K8sPodRepository interface {
 	ListWithFilter(page, pageSize int, name, namespace, workloadName, status, instanceIP, sortBy, sortOrder string, startTime, endTime *string, configId *int64) (int64, []model.K8sPod, error)
 	ListByConfigID(configID int64) ([]model.K8sPod, error)
 	DeleteByConfigID(configID int64) error
+	DeleteNotInList(configID int64, currentPods []model.K8sPod) error
 	BatchCreate(pods []model.K8sPod) error
+	BatchCreateOrUpdate(pods []model.K8sPod) error
+	// 事务支持
+	WithTx(tx *gorm.DB) K8sPodRepository
+	Transaction(fn func(K8sPodRepository) error) error
 }
 
 // k8sPodRepository K8s Pod仓库实现
@@ -120,7 +127,7 @@ func (r *k8sPodRepository) ListWithFilter(page, pageSize int, name, namespace, w
 
 	// 构建排序条件
 	orderClause := r.buildOrderClause(sortBy, sortOrder)
-	
+
 	offset := (page - 1) * pageSize
 	if err := query.Offset(offset).Limit(pageSize).Order(orderClause).Find(&pods).Error; err != nil {
 		return 0, nil, err
@@ -143,16 +150,16 @@ func (r *k8sPodRepository) buildOrderClause(sortBy, sortOrder string) string {
 			WHEN 'Succeeded' THEN 7
 			ELSE 8
 		END ASC, created_at DESC`
-	
+
 	if sortBy == "" {
 		return defaultOrder
 	}
-	
+
 	// 验证排序方向
 	if sortOrder != "asc" && sortOrder != "desc" {
 		sortOrder = "asc"
 	}
-	
+
 	// 根据排序字段构建排序条件
 	switch sortBy {
 	case "name":
@@ -208,4 +215,91 @@ func (r *k8sPodRepository) BatchCreate(pods []model.K8sPod) error {
 		return nil
 	}
 	return r.db.CreateInBatches(pods, 100).Error
+}
+
+// DeleteNotInList 删除不在当前列表中的Pod
+func (r *k8sPodRepository) DeleteNotInList(configID int64, currentPods []model.K8sPod) error {
+	if len(currentPods) == 0 {
+		// 如果没有当前Pod，删除所有Pod
+		return r.db.Where("config_id = ? AND deleted_at IS NULL", configID).Delete(&model.K8sPod{}).Error
+	}
+
+	// 构建当前Pod的唯一标识列表 (name-namespace)
+	var currentKeys []string
+	for _, pod := range currentPods {
+		key := fmt.Sprintf("'%s-%s'",
+			strings.ReplaceAll(pod.Name, "'", "''"),
+			strings.ReplaceAll(pod.Namespace, "'", "''"))
+		currentKeys = append(currentKeys, key)
+	}
+
+	// 删除不在当前列表中的Pod
+	sql := `DELETE FROM infra_k8s_pod
+			WHERE config_id = ? AND deleted_at IS NULL
+			AND CONCAT(name, '-', namespace) NOT IN (` + strings.Join(currentKeys, ",") + `)`
+
+	return r.db.Exec(sql, configID).Error
+}
+
+// BatchCreateOrUpdate 批量创建或更新Pod
+func (r *k8sPodRepository) BatchCreateOrUpdate(pods []model.K8sPod) error {
+	if len(pods) == 0 {
+		return nil
+	}
+
+	// 分批处理，减少锁持有时间
+	batchSize := 50 // 每批处理50个
+	for i := 0; i < len(pods); i += batchSize {
+		end := i + batchSize
+		if end > len(pods) {
+			end = len(pods)
+		}
+
+		batch := pods[i:end]
+
+		// 使用较短的事务处理每批数据
+		err := r.db.Transaction(func(tx *gorm.DB) error {
+			for _, pod := range batch {
+				// 先查找是否存在相同的Pod
+				var existingPod model.K8sPod
+				err := tx.Where("config_id = ? AND name = ? AND namespace = ?",
+					pod.ConfigID, pod.Name, pod.Namespace).First(&existingPod).Error
+
+				if err == gorm.ErrRecordNotFound {
+					// 不存在，创建新记录
+					if err := tx.Create(&pod).Error; err != nil {
+						return err
+					}
+				} else if err == nil {
+					// 存在，更新记录
+					pod.ID = existingPod.ID
+					pod.CreatedAt = existingPod.CreatedAt
+					if err := tx.Save(&pod).Error; err != nil {
+						return err
+					}
+				} else {
+					return err
+				}
+			}
+			return nil
+		})
+
+		if err != nil {
+			return fmt.Errorf("batch %d-%d failed: %v", i, end-1, err)
+		}
+	}
+
+	return nil
+}
+
+// WithTx 使用事务
+func (r *k8sPodRepository) WithTx(tx *gorm.DB) K8sPodRepository {
+	return &k8sPodRepository{db: tx}
+}
+
+// Transaction 执行事务
+func (r *k8sPodRepository) Transaction(fn func(K8sPodRepository) error) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		return fn(r.WithTx(tx))
+	})
 }

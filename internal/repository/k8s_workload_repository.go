@@ -2,6 +2,9 @@ package repository
 
 import (
 	"eden-ops/internal/model"
+	"fmt"
+	"strings"
+
 	"gorm.io/gorm"
 )
 
@@ -15,9 +18,14 @@ type K8sWorkloadRepository interface {
 	ListWithFilter(page, pageSize int, name, namespace, workloadType, status, replicas, sortBy, sortOrder string, startTime, endTime *string, configId *int64) (int64, []model.K8sWorkload, error)
 	ListByConfigID(configID int64) ([]model.K8sWorkload, error)
 	DeleteByConfigID(configID int64) error
+	DeleteNotInList(configID int64, currentWorkloads []model.K8sWorkload) error
 	BatchCreate(workloads []model.K8sWorkload) error
 	BatchUpdate(workloads []model.K8sWorkload) error
+	BatchCreateOrUpdate(workloads []model.K8sWorkload) error
 	CountByConfigID(configID int64) (int64, error)
+	// 事务支持
+	WithTx(tx *gorm.DB) K8sWorkloadRepository
+	Transaction(fn func(K8sWorkloadRepository) error) error
 }
 
 // k8sWorkloadRepository Kubernetes工作负载仓库实现
@@ -61,7 +69,7 @@ func (r *k8sWorkloadRepository) List(configID int64, page, pageSize int) (int64,
 	var total int64
 
 	query := r.db.Model(&model.K8sWorkload{}).Where("config_id = ?", configID)
-	
+
 	if err := query.Count(&total).Error; err != nil {
 		return 0, nil, err
 	}
@@ -234,7 +242,7 @@ func (r *k8sWorkloadRepository) BatchUpdate(workloads []model.K8sWorkload) error
 	if len(workloads) == 0 {
 		return nil
 	}
-	
+
 	// 使用事务批量更新
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		for _, workload := range workloads {
@@ -243,5 +251,114 @@ func (r *k8sWorkloadRepository) BatchUpdate(workloads []model.K8sWorkload) error
 			}
 		}
 		return nil
+	})
+}
+
+// DeleteNotInList 删除不在当前列表中的工作负载
+func (r *k8sWorkloadRepository) DeleteNotInList(configID int64, currentWorkloads []model.K8sWorkload) error {
+	if len(currentWorkloads) == 0 {
+		// 如果没有当前工作负载，删除所有工作负载
+		return r.db.Where("config_id = ? AND deleted_at IS NULL", configID).Delete(&model.K8sWorkload{}).Error
+	}
+
+	// 构建当前工作负载的唯一标识列表 (name-namespace-kind)
+	var currentKeys []string
+	for _, workload := range currentWorkloads {
+		key := fmt.Sprintf("'%s-%s-%s'",
+			strings.ReplaceAll(workload.Name, "'", "''"),
+			strings.ReplaceAll(workload.Namespace, "'", "''"),
+			strings.ReplaceAll(workload.Kind, "'", "''"))
+		currentKeys = append(currentKeys, key)
+	}
+
+	// 删除不在当前列表中的工作负载
+	sql := `DELETE FROM infra_k8s_workload
+			WHERE config_id = ? AND deleted_at IS NULL
+			AND CONCAT(name, '-', namespace, '-', kind) NOT IN (` + strings.Join(currentKeys, ",") + `)`
+
+	return r.db.Exec(sql, configID).Error
+}
+
+// BatchCreateOrUpdate 批量创建或更新工作负载
+func (r *k8sWorkloadRepository) BatchCreateOrUpdate(workloads []model.K8sWorkload) error {
+	if len(workloads) == 0 {
+		return nil
+	}
+
+	// 分批处理，减少锁持有时间
+	batchSize := 50 // 每批处理50个
+	for i := 0; i < len(workloads); i += batchSize {
+		end := i + batchSize
+		if end > len(workloads) {
+			end = len(workloads)
+		}
+
+		batch := workloads[i:end]
+
+		// 使用ON DUPLICATE KEY UPDATE避免竞态条件
+		err := r.db.Transaction(func(tx *gorm.DB) error {
+			// 使用原生SQL进行批量插入或更新，避免唯一键冲突
+			return r.batchUpsertWorkloads(tx, batch)
+		})
+
+		if err != nil {
+			return fmt.Errorf("batch %d-%d failed: %v", i, end-1, err)
+		}
+	}
+
+	return nil
+}
+
+// batchUpsertWorkloads 批量插入或更新工作负载（使用原生SQL）
+func (r *k8sWorkloadRepository) batchUpsertWorkloads(tx *gorm.DB, workloads []model.K8sWorkload) error {
+	if len(workloads) == 0 {
+		return nil
+	}
+
+	// 构建批量插入SQL
+	sql := `INSERT INTO infra_k8s_workload
+		(config_id, name, namespace, kind, replicas, ready_replicas, status, labels, selector, images,
+		 cpu_request, cpu_limit, memory_request, memory_limit, created_at, updated_at)
+		VALUES `
+
+	var values []string
+	var args []interface{}
+
+	for _, workload := range workloads {
+		values = append(values, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+		args = append(args,
+			workload.ConfigID, workload.Name, workload.Namespace, workload.Kind,
+			workload.Replicas, workload.ReadyReplicas, workload.Status,
+			workload.Labels, workload.Selector, workload.Images,
+			workload.CPURequest, workload.CPULimit, workload.MemoryRequest, workload.MemoryLimit,
+			workload.CreatedAt, workload.UpdatedAt)
+	}
+
+	sql += strings.Join(values, ", ")
+	sql += ` ON DUPLICATE KEY UPDATE
+		replicas = VALUES(replicas),
+		ready_replicas = VALUES(ready_replicas),
+		status = VALUES(status),
+		labels = VALUES(labels),
+		selector = VALUES(selector),
+		images = VALUES(images),
+		cpu_request = VALUES(cpu_request),
+		cpu_limit = VALUES(cpu_limit),
+		memory_request = VALUES(memory_request),
+		memory_limit = VALUES(memory_limit),
+		updated_at = VALUES(updated_at)`
+
+	return tx.Exec(sql, args...).Error
+}
+
+// WithTx 使用事务
+func (r *k8sWorkloadRepository) WithTx(tx *gorm.DB) K8sWorkloadRepository {
+	return &k8sWorkloadRepository{db: tx}
+}
+
+// Transaction 执行事务
+func (r *k8sWorkloadRepository) Transaction(fn func(K8sWorkloadRepository) error) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		return fn(r.WithTx(tx))
 	})
 }

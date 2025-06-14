@@ -3,6 +3,7 @@ package service
 import (
 	"eden-ops/internal/model"
 	"eden-ops/internal/repository"
+	"fmt"
 )
 
 // K8sPodService K8s Pod服务接口
@@ -20,13 +21,15 @@ type K8sPodService interface {
 
 // k8sPodService K8s Pod服务实现
 type k8sPodService struct {
-	repo repository.K8sPodRepository
+	repo        repository.K8sPodRepository
+	historyRepo repository.K8sPodHistoryRepository
 }
 
 // NewK8sPodService 创建K8s Pod服务
-func NewK8sPodService(repo repository.K8sPodRepository) K8sPodService {
+func NewK8sPodService(repo repository.K8sPodRepository, historyRepo repository.K8sPodHistoryRepository) K8sPodService {
 	return &k8sPodService{
-		repo: repo,
+		repo:        repo,
+		historyRepo: historyRepo,
 	}
 }
 
@@ -85,17 +88,26 @@ func (s *k8sPodService) DeleteByConfigID(configID int64) error {
 	return s.repo.DeleteByConfigID(configID)
 }
 
-// SyncPods 同步Pod数据
+// SyncPods 同步Pod数据（支持历史表归档）
 func (s *k8sPodService) SyncPods(configID int64, pods []model.K8sPod) error {
-	// 先删除该集群的所有Pod
-	if err := s.repo.DeleteByConfigID(configID); err != nil {
-		return err
+	// 顺序执行，每个步骤使用独立的小事务，避免长事务
+
+	// 1. 先归档不存在的Pod到历史表（独立小事务）
+	if err := s.historyRepo.ArchivePodsNotInList(configID, pods, model.ArchiveReasonSyncCleanup); err != nil {
+		return fmt.Errorf("failed to archive pods: %v", err)
 	}
-	
-	// 批量创建新的Pod
+
+	// 2. 删除已归档的Pod（独立小事务）
+	if err := s.repo.DeleteNotInList(configID, pods); err != nil {
+		return fmt.Errorf("failed to delete old pods: %v", err)
+	}
+
+	// 3. 批量创建或更新新的Pod（独立小事务）
 	if len(pods) > 0 {
-		return s.repo.BatchCreate(pods)
+		if err := s.repo.BatchCreateOrUpdate(pods); err != nil {
+			return fmt.Errorf("failed to create/update pods: %v", err)
+		}
 	}
-	
+
 	return nil
 }

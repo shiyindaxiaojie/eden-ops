@@ -22,6 +22,7 @@ func NewRouter(
 	k8sNamespaceHandler *handler.K8sNamespaceHandler,
 	k8sPodHandler *handler.K8sPodHandler,
 	k8sNodeHandler *handler.K8sNodeHandler,
+	k8sHistoryHandler *handler.K8sHistoryHandler,
 	userHandler *handler.UserHandler,
 	roleHandler *handler.RoleHandler,
 	menuHandler *handler.MenuHandler,
@@ -134,6 +135,13 @@ func NewRouter(
 		auth.GET("/k8s-nodes", k8sNodeHandler.List)
 		auth.GET("/k8s-nodes/:id", k8sNodeHandler.GetByID)
 		auth.DELETE("/k8s-nodes/:id", k8sNodeHandler.Delete)
+
+		// Kubernetes历史数据管理
+		auth.GET("/k8s-history/:configId/pods", k8sHistoryHandler.GetPodHistory)
+		auth.GET("/k8s-history/:configId/nodes", k8sHistoryHandler.GetNodeHistory)
+		auth.GET("/k8s-history/:configId/workloads", k8sHistoryHandler.GetWorkloadHistory)
+		auth.GET("/k8s-history/:configId/statistics", k8sHistoryHandler.GetHistoryStatistics)
+		auth.POST("/k8s-history/cleanup", k8sHistoryHandler.CleanupHistory)
 
 		// 基础设施路由组
 		infrastructure := auth.Group("/infrastructure")

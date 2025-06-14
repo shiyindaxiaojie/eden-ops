@@ -8,7 +8,7 @@ import (
 type K8sNamespace struct {
 	ID            int64      `json:"id" gorm:"primaryKey"`
 	ConfigID      int64      `json:"config_id" gorm:"not null;index"`
-	Namespace     string     `json:"namespace" gorm:"size:255;not null;index"`
+	Namespace     string     `json:"namespace" gorm:"size:100;not null;index"`
 	WorkloadCount int        `json:"workload_count" gorm:"default:0"`
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`

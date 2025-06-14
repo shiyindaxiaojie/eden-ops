@@ -178,6 +178,9 @@ func main() {
 	k8sWorkloadRepo := repository.NewK8sWorkloadRepository(db)
 	k8sNamespaceRepo := repository.NewK8sNamespaceRepository(db)
 	k8sPodRepo := repository.NewK8sPodRepository(db)
+	k8sPodHistoryRepo := repository.NewK8sPodHistoryRepository(db)
+	k8sNodeHistoryRepo := repository.NewK8sNodeHistoryRepository(db)
+	k8sWorkloadHistoryRepo := repository.NewK8sWorkloadHistoryRepository(db)
 
 	// 初始化服务
 	userService := service.NewUserService(userRepo, jwtAuth)
@@ -187,23 +190,51 @@ func main() {
 	cloudProviderService := service.NewCloudProviderService(cloudProviderRepo)
 	databaseConfigService := service.NewDatabaseConfigService(databaseConfigRepo)
 	serverConfigService := service.NewServerConfigService(serverConfigRepo)
-	k8sWorkloadService := service.NewK8sWorkloadService(k8sWorkloadRepo)
-	k8sPodService := service.NewK8sPodService(k8sPodRepo)
+	k8sWorkloadService := service.NewK8sWorkloadService(k8sWorkloadRepo, k8sWorkloadHistoryRepo)
+	k8sPodService := service.NewK8sPodService(k8sPodRepo, k8sPodHistoryRepo)
 	k8sNodeRepo := repository.NewK8sNodeRepository(db)
-	k8sNodeService := service.NewK8sNodeService(k8sNodeRepo)
-	k8sConfigService := service.NewK8sConfigService(k8sConfigRepo, k8sWorkloadService, k8sWorkloadRepo, k8sNamespaceRepo, k8sPodService, k8sNodeService)
+	k8sNodeService := service.NewK8sNodeService(k8sNodeRepo, k8sNodeHistoryRepo)
+	k8sConfigService := service.NewK8sConfigService(k8sConfigRepo, k8sWorkloadService, k8sWorkloadRepo, k8sNamespaceRepo, k8sPodService, k8sNodeService, k8sPodHistoryRepo, k8sNodeHistoryRepo, k8sWorkloadHistoryRepo)
 
 	// 启动K8s同步任务
+	logger.Info("启动K8s同步任务...")
 	k8sSyncTask := task.NewK8sSyncTask(db, k8sConfigService)
-
 	syncCtx, syncCancel := context.WithCancel(context.Background())
 	defer syncCancel()
-
 	go func() {
 		if err := k8sSyncTask.Start(syncCtx); err != nil {
 			logger.Error("启动K8s同步任务失败: %v", err)
 		}
 	}()
+	logger.Info("K8s同步任务启动成功")
+
+	// 启动K8s历史数据清理服务
+	if cfg.K8sHistory.CleanupEnabled {
+		logger.Info("启动K8s历史数据清理服务...")
+
+		// 解析清理间隔
+		cleanupInterval, err := time.ParseDuration(cfg.K8sHistory.CleanupInterval)
+		if err != nil {
+			logger.Error("解析清理间隔失败: %v，使用默认值24h", err)
+			cleanupInterval = 24 * time.Hour
+		}
+
+		// 创建清理服务配置
+		cleanupConfig := service.K8sHistoryCleanupConfig{
+			Enabled:         cfg.K8sHistory.Enabled,
+			CleanupEnabled:  cfg.K8sHistory.CleanupEnabled,
+			CleanupDays:     cfg.K8sHistory.CleanupDays,
+			CleanupInterval: cleanupInterval,
+			BatchSize:       cfg.K8sHistory.BatchSize,
+		}
+
+		k8sHistoryCleanupService := service.NewK8sHistoryCleanupService(k8sPodHistoryRepo, k8sNodeHistoryRepo, k8sWorkloadHistoryRepo, cleanupConfig)
+
+		go func() {
+			k8sHistoryCleanupService.Start()
+		}()
+		logger.Info("K8s历史数据清理服务启动成功")
+	}
 
 	// 初始化处理器
 	userHandler := handler.NewUserHandler(userService, jwtAuth)
@@ -219,6 +250,7 @@ func main() {
 	k8sNamespaceHandler := handler.NewK8sNamespaceHandler(k8sNamespaceRepo)
 	k8sPodHandler := handler.NewK8sPodHandler(k8sPodService)
 	k8sNodeHandler := handler.NewK8sNodeHandler(k8sNodeService)
+	k8sHistoryHandler := handler.NewK8sHistoryHandler(k8sPodHistoryRepo, k8sNodeHistoryRepo, k8sWorkloadHistoryRepo)
 
 	// 初始化路由
 	logger.Info("初始化路由...")
@@ -234,6 +266,7 @@ func main() {
 		k8sNamespaceHandler,
 		k8sPodHandler,
 		k8sNodeHandler,
+		k8sHistoryHandler,
 		userHandler,
 		roleHandler,
 		menuHandler,

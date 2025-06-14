@@ -2,6 +2,9 @@ package repository
 
 import (
 	"eden-ops/internal/model"
+	"fmt"
+	"strings"
+
 	"gorm.io/gorm"
 )
 
@@ -14,7 +17,11 @@ type K8sNodeRepository interface {
 	GetByConfigAndName(configID int64, name string) (*model.K8sNode, error)
 	List(page, pageSize int, configID int64, name, internalIP, status string, ready *bool) (int64, []model.K8sNode, error)
 	DeleteByConfigID(configID int64) error
+	DeleteNotInList(configID int64, currentNodes []model.K8sNode) error
 	BatchCreateOrUpdate(nodes []model.K8sNode) error
+	// 事务支持
+	WithTx(tx *gorm.DB) K8sNodeRepository
+	Transaction(fn func(K8sNodeRepository) error) error
 }
 
 // k8sNodeRepository 节点仓储实现
@@ -110,27 +117,79 @@ func (r *k8sNodeRepository) BatchCreateOrUpdate(nodes []model.K8sNode) error {
 		return nil
 	}
 
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		for _, node := range nodes {
-			var existingNode model.K8sNode
-			err := tx.Where("config_id = ? AND name = ?", node.ConfigID, node.Name).First(&existingNode).Error
-			
-			if err == gorm.ErrRecordNotFound {
-				// 创建新节点
-				if err := tx.Create(&node).Error; err != nil {
-					return err
-				}
-			} else if err == nil {
-				// 更新现有节点
-				node.ID = existingNode.ID
-				node.CreatedAt = existingNode.CreatedAt
-				if err := tx.Save(&node).Error; err != nil {
-					return err
-				}
-			} else {
-				return err
-			}
+	// 分批处理，减少锁持有时间
+	batchSize := 20 // Node数量通常较少，每批处理20个
+	for i := 0; i < len(nodes); i += batchSize {
+		end := i + batchSize
+		if end > len(nodes) {
+			end = len(nodes)
 		}
-		return nil
+
+		batch := nodes[i:end]
+
+		// 使用较短的事务处理每批数据
+		err := r.db.Transaction(func(tx *gorm.DB) error {
+			for _, node := range batch {
+				var existingNode model.K8sNode
+				err := tx.Where("config_id = ? AND name = ?", node.ConfigID, node.Name).First(&existingNode).Error
+
+				if err == gorm.ErrRecordNotFound {
+					// 创建新节点
+					if err := tx.Create(&node).Error; err != nil {
+						return err
+					}
+				} else if err == nil {
+					// 更新现有节点
+					node.ID = existingNode.ID
+					node.CreatedAt = existingNode.CreatedAt
+					if err := tx.Save(&node).Error; err != nil {
+						return err
+					}
+				} else {
+					return err
+				}
+			}
+			return nil
+		})
+
+		if err != nil {
+			return fmt.Errorf("batch %d-%d failed: %v", i, end-1, err)
+		}
+	}
+
+	return nil
+}
+
+// DeleteNotInList 删除不在当前列表中的Node
+func (r *k8sNodeRepository) DeleteNotInList(configID int64, currentNodes []model.K8sNode) error {
+	if len(currentNodes) == 0 {
+		// 如果没有当前Node，删除所有Node
+		return r.db.Where("config_id = ? AND deleted_at IS NULL", configID).Delete(&model.K8sNode{}).Error
+	}
+
+	// 构建当前Node的名称列表
+	var currentNames []string
+	for _, node := range currentNodes {
+		name := fmt.Sprintf("'%s'", strings.ReplaceAll(node.Name, "'", "''"))
+		currentNames = append(currentNames, name)
+	}
+
+	// 删除不在当前列表中的Node
+	sql := `DELETE FROM infra_k8s_node
+			WHERE config_id = ? AND deleted_at IS NULL
+			AND name NOT IN (` + strings.Join(currentNames, ",") + `)`
+
+	return r.db.Exec(sql, configID).Error
+}
+
+// WithTx 使用事务
+func (r *k8sNodeRepository) WithTx(tx *gorm.DB) K8sNodeRepository {
+	return &k8sNodeRepository{db: tx}
+}
+
+// Transaction 执行事务
+func (r *k8sNodeRepository) Transaction(fn func(K8sNodeRepository) error) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		return fn(r.WithTx(tx))
 	})
 }

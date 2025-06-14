@@ -80,7 +80,14 @@ func InitDB(cfg *config.Config) (*DB, error) {
 		cfg.Database.Port,
 		cfg.Database.DBName,
 	)
-	pkgLogger.Info("数据库连接DSN: %s", dsn)
+	// 创建安全的DSN用于日志显示（隐藏密码）
+	safeDSN := fmt.Sprintf("%s:***@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local&allowNativePasswords=true",
+		cfg.Database.Username,
+		cfg.Database.Host,
+		cfg.Database.Port,
+		cfg.Database.DBName,
+	)
+	pkgLogger.Info("数据库连接DSN: %s", safeDSN)
 
 	// 配置 GORM
 	gormConfig := &gorm.Config{

@@ -40,9 +40,15 @@ func (l *GormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql 
 	sql, rows := fc()
 
 	if err != nil {
-		// 有错误时，记录带错误标记的SQL日志
-		logger.SQLWithError(sql, elapsed, rows, true)
-		logger.Error("SQL执行错误: %v", err)
+		// 检查是否是"record not found"错误，这通常是正常的业务逻辑
+		if err.Error() == "record not found" {
+			// 对于"record not found"，只记录SQL日志，不记录错误
+			logger.SQLWithError(sql, elapsed, rows, false)
+		} else {
+			// 其他错误才记录为错误日志
+			logger.SQLWithError(sql, elapsed, rows, true)
+			logger.Error("SQL执行错误: %v", err)
+		}
 	} else {
 		// 正常情况下记录SQL日志
 		logger.SQLWithError(sql, elapsed, rows, false)

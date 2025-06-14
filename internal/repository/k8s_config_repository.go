@@ -19,6 +19,7 @@ type K8sConfigRepository interface {
 	Delete(id int64) error
 	Get(id int64) (*model.K8sConfig, error)
 	List(page, pageSize int, name string, status *int, providerId *int64, clusterID string) (int64, []model.K8sConfig, error)
+	UpdateDestroyedStats(configID int64, workloadCount, podCount, nodeCount int) error
 	GetDB() *gorm.DB
 }
 
@@ -175,4 +176,15 @@ func (r *k8sConfigRepository) GetWorkloads(id int64) (interface{}, error) {
 	}
 
 	return workloads, nil
+}
+
+// UpdateDestroyedStats 更新销毁统计数据
+func (r *k8sConfigRepository) UpdateDestroyedStats(configID int64, workloadCount, podCount, nodeCount int) error {
+	return r.db.Model(&model.K8sConfig{}).
+		Where("id = ?", configID).
+		Updates(map[string]interface{}{
+			"workload_destroyed_count": workloadCount,
+			"pod_destroyed_count":      podCount,
+			"node_destroyed_count":     nodeCount,
+		}).Error
 }

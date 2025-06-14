@@ -3,6 +3,9 @@ package service
 import (
 	"eden-ops/internal/model"
 	"eden-ops/internal/repository"
+	"fmt"
+	"strings"
+	"time"
 )
 
 // K8sWorkloadService Kubernetes工作负载服务接口
@@ -20,13 +23,15 @@ type K8sWorkloadService interface {
 
 // k8sWorkloadService Kubernetes工作负载服务实现
 type k8sWorkloadService struct {
-	repo repository.K8sWorkloadRepository
+	repo        repository.K8sWorkloadRepository
+	historyRepo repository.K8sWorkloadHistoryRepository
 }
 
 // NewK8sWorkloadService 创建Kubernetes工作负载服务
-func NewK8sWorkloadService(repo repository.K8sWorkloadRepository) K8sWorkloadService {
+func NewK8sWorkloadService(repo repository.K8sWorkloadRepository, historyRepo repository.K8sWorkloadHistoryRepository) K8sWorkloadService {
 	return &k8sWorkloadService{
-		repo: repo,
+		repo:        repo,
+		historyRepo: historyRepo,
 	}
 }
 
@@ -85,17 +90,59 @@ func (s *k8sWorkloadService) DeleteByConfigID(configID int64) error {
 	return s.repo.DeleteByConfigID(configID)
 }
 
-// SyncWorkloads 同步工作负载数据
+// SyncWorkloads 同步工作负载数据（支持历史表归档）
 func (s *k8sWorkloadService) SyncWorkloads(configID int64, workloads []model.K8sWorkload) error {
-	// 先删除该集群的所有工作负载
-	if err := s.repo.DeleteByConfigID(configID); err != nil {
+	// 顺序执行，每个步骤使用独立的小事务，避免长事务
+
+	// 1. 先归档不存在的工作负载到历史表（独立小事务）
+	if err := s.retryOnLockTimeout(func() error {
+		return s.historyRepo.ArchiveWorkloadsNotInList(configID, workloads, model.ArchiveReasonSyncCleanup)
+	}); err != nil {
+		return fmt.Errorf("failed to archive workloads: %v", err)
+	}
+
+	// 2. 删除已归档的工作负载（独立小事务）
+	if err := s.retryOnLockTimeout(func() error {
+		return s.repo.DeleteNotInList(configID, workloads)
+	}); err != nil {
+		return fmt.Errorf("failed to delete old workloads: %v", err)
+	}
+
+	// 3. 批量创建或更新新的工作负载（独立小事务）
+	if len(workloads) > 0 {
+		if err := s.retryOnLockTimeout(func() error {
+			return s.repo.BatchCreateOrUpdate(workloads)
+		}); err != nil {
+			return fmt.Errorf("failed to create/update workloads: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// retryOnLockTimeout 在锁等待超时时重试
+func (s *k8sWorkloadService) retryOnLockTimeout(fn func() error) error {
+	maxRetries := 3
+	baseDelay := 1000 // 1秒
+
+	for i := 0; i < maxRetries; i++ {
+		err := fn()
+		if err == nil {
+			return nil
+		}
+
+		// 检查是否是锁等待超时错误
+		if strings.Contains(err.Error(), "Lock wait timeout exceeded") {
+			if i < maxRetries-1 { // 不是最后一次重试
+				delay := baseDelay * (i + 1) // 递增延迟
+				time.Sleep(time.Duration(delay) * time.Millisecond)
+				continue
+			}
+		}
+
+		// 非锁超时错误或已达到最大重试次数
 		return err
 	}
-	
-	// 批量创建新的工作负载
-	if len(workloads) > 0 {
-		return s.repo.BatchCreate(workloads)
-	}
-	
-	return nil
+
+	return fmt.Errorf("max retries exceeded")
 }
