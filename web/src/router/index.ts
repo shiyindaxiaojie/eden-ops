@@ -80,6 +80,27 @@ export const constantRoutes: Array<RouteRecordRaw> = [
         hidden: true
       },
       {
+        path: 'kubernetes/workloads-history',
+        component: () => import('@/views/infrastructure/kubernetes/workloads-history.vue'),
+        name: 'KubernetesWorkloadsHistory',
+        meta: { title: 'Kubernetes 工作负载历史', activeMenu: '/infrastructure/kubernetes' },
+        hidden: true
+      },
+      {
+        path: 'kubernetes/pods-history',
+        component: () => import('@/views/infrastructure/kubernetes/pods-history.vue'),
+        name: 'KubernetesPodsHistory',
+        meta: { title: 'Kubernetes Pod历史', activeMenu: '/infrastructure/kubernetes' },
+        hidden: true
+      },
+      {
+        path: 'kubernetes/nodes-history',
+        component: () => import('@/views/infrastructure/kubernetes/nodes-history.vue'),
+        name: 'KubernetesNodesHistory',
+        meta: { title: 'Kubernetes 节点历史', activeMenu: '/infrastructure/kubernetes' },
+        hidden: true
+      },
+      {
         path: 'cloud-provider',
         name: 'CloudProvider',
         component: () => import('@/views/infrastructure/cloud-provider/index.vue'),

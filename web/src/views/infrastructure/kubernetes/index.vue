@@ -416,13 +416,31 @@ const handleViewNodes = (row: any, status: string = '') => {
 }
 
 const handleViewHistory = (row: any, type: string) => {
-  // 路由到历史数据页面
-  router.push({
-    path: `/infrastructure/kubernetes/history/${row.id}/${type}`,
-    query: {
-      clusterName: row.name
-    }
-  })
+  // 路由到对应的历史数据页面
+  const historyRoutes = {
+    workloads: '/infrastructure/kubernetes/workloads-history',
+    pods: '/infrastructure/kubernetes/pods-history',
+    nodes: '/infrastructure/kubernetes/nodes-history'
+  }
+
+  const routePath = historyRoutes[type as keyof typeof historyRoutes]
+  if (routePath) {
+    router.push({
+      path: routePath,
+      query: {
+        configId: row.id,
+        clusterName: row.name
+      }
+    })
+  } else {
+    // 兜底到通用历史页面
+    router.push({
+      path: `/infrastructure/kubernetes/history/${row.id}/${type}`,
+      query: {
+        clusterName: row.name
+      }
+    })
+  }
 }
 
 const handleDelete = (row: any) => {
